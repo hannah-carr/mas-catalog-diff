@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>IBM MAS Catalog Comparator & What's New</title>
+  <title>IBM MAS - What's New Comparator</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
   <style>
@@ -17,26 +17,33 @@
       -moz-appearance: none;
       appearance: none;
     }
+    .prose a {
+      color: #2563eb;
+      text-decoration: underline;
+    }
+    .prose a:hover {
+      color: #1d4ed8;
+    }
   </style>
 </head>
 <body class="bg-slate-50 text-slate-900 min-h-screen">
 
-  <div class="max-w-6xl mx-auto py-10 px-4 sm:px-6">
+  <div class="max-w-5xl mx-auto py-10 px-4 sm:px-6">
     <!-- Header -->
     <header class="mb-8 border-b pb-6 border-slate-200">
       <div class="flex items-center justify-between">
         <div>
           <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-3">
-            <span class="text-blue-600"><i class="fa-solid fa-code-compare"></i></span>
-            MAS Catalog Comparator
+            <span class="text-blue-600"><i class="fa-solid fa-newspaper"></i></span>
+            MAS "What's New" Aggregator
           </h1>
-          <p class="text-slate-500 mt-1 text-sm sm:text-base">
-            Dynamically discovers live IBM Maximo Application Suite catalogs from the MAS CLI release tree.
+          <p class="text-slate-600 mt-1 text-sm sm:text-base">
+            Compare any two MAS catalog versions and extract all "What's New" articles, release notes, and documentation updates published between them.
           </p>
         </div>
         <div class="flex items-center gap-3">
-          <button id="refreshCatalogBtn" title="Refresh Live Catalogs from GitHub" class="text-xs bg-white border border-slate-200 text-slate-600 px-3 py-1.5 rounded-lg hover:bg-slate-100 flex items-center gap-1.5 transition">
-            <i class="fa-solid fa-arrows-rotate"></i> Sync Catalogs
+          <button id="refreshBtn" title="Sync live catalogs" class="text-xs bg-white border border-slate-200 text-slate-600 px-3 py-1.5 rounded-lg hover:bg-slate-100 flex items-center gap-1.5 transition">
+            <i class="fa-solid fa-arrows-rotate"></i> Sync
           </button>
           <a href="https://github.com/ibm-mas/cli" target="_blank" class="text-slate-400 hover:text-slate-700 text-2xl transition">
             <i class="fa-brands fa-github"></i>
@@ -51,11 +58,11 @@
         <!-- Base Version -->
         <div>
           <label for="fromVersionSelect" class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2 flex justify-between">
-            <span>Base Version (From)</span>
-            <span id="catalogCountBadge" class="text-[10px] text-blue-600 lowercase bg-blue-50 px-2 py-0.5 rounded-full font-mono">loading...</span>
+            <span>Starting Version (From)</span>
+            <span id="catalogCountBadge" class="text-[10px] text-blue-600 lowercase bg-blue-50 px-2 py-0.5 rounded-full font-mono">syncing...</span>
           </label>
           <select id="fromVersionSelect" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm font-medium cursor-pointer">
-            <option value="">Fetching live catalog tags...</option>
+            <option value="">Loading catalogs...</option>
           </select>
         </div>
 
@@ -65,19 +72,19 @@
             Target Version (To)
           </label>
           <select id="toVersionSelect" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm font-medium cursor-pointer">
-            <option value="">Fetching live catalog tags...</option>
+            <option value="">Loading catalogs...</option>
           </select>
         </div>
       </div>
 
       <div class="mt-6 flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-slate-100">
-        <span id="statusIndicator" class="text-xs text-slate-500 italic">Syncing live catalog tags from GitHub...</span>
+        <span id="statusIndicator" class="text-xs text-slate-500 italic">Select starting and target versions to pull What's New highlights.</span>
         <div class="flex gap-3">
           <button id="swapBtn" title="Swap versions" class="px-3 py-2 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl text-sm font-medium transition">
             <i class="fa-solid fa-arrow-right-arrow-left"></i> Swap
           </button>
           <button id="compareBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-2.5 rounded-xl text-sm shadow-sm transition flex items-center gap-2">
-            <i class="fa-solid fa-bolt"></i> Generate What's New
+            <i class="fa-solid fa-sparkles"></i> Extract What's New
           </button>
         </div>
       </div>
@@ -85,81 +92,29 @@
 
     <!-- Output Section -->
     <div id="results" class="space-y-6">
-      <!-- Quick Stats -->
-      <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
-          <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center text-lg sm:text-xl">
-            <i class="fa-solid fa-plus"></i>
-          </div>
-          <div>
-            <div class="text-xs font-bold text-slate-400 uppercase">Added</div>
-            <div id="statAdded" class="text-xl sm:text-2xl font-bold text-slate-800">0</div>
-          </div>
+      <!-- Summary Bar -->
+      <div id="summaryBar" class="bg-blue-50 border border-blue-200 rounded-xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 hidden">
+        <div>
+          <h2 id="summaryTitle" class="text-base font-bold text-blue-900">What's New Summary</h2>
+          <p id="summarySubtitle" class="text-xs text-blue-700 mt-0.5">Aggregated changes across releases</p>
         </div>
-        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
-          <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center text-lg sm:text-xl">
-            <i class="fa-solid fa-arrow-up-right-dots"></i>
-          </div>
-          <div>
-            <div class="text-xs font-bold text-slate-400 uppercase">Upgraded</div>
-            <div id="statUpgraded" class="text-xl sm:text-2xl font-bold text-slate-800">0</div>
-          </div>
-        </div>
-        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
-          <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center text-lg sm:text-xl">
-            <i class="fa-solid fa-trash-can"></i>
-          </div>
-          <div>
-            <div class="text-xs font-bold text-slate-400 uppercase">Removed</div>
-            <div id="statRemoved" class="text-xl sm:text-2xl font-bold text-slate-800">0</div>
-          </div>
-        </div>
-        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
-          <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-slate-50 text-slate-600 flex items-center justify-center text-lg sm:text-xl">
-            <i class="fa-solid fa-equals"></i>
-          </div>
-          <div>
-            <div class="text-xs font-bold text-slate-400 uppercase">Unchanged</div>
-            <div id="statUnchanged" class="text-xl sm:text-2xl font-bold text-slate-800">0</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Action Bar (Search & Export) -->
-      <div class="flex flex-col sm:flex-row justify-between items-center gap-4 bg-white p-4 rounded-xl border border-slate-200">
-        <input id="tableSearch" type="text" placeholder="Filter components (e.g. manage, monitor, iot)..." 
-               class="w-full sm:w-72 px-3 py-1.5 text-sm bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
-        <button id="exportMdBtn" class="w-full sm:w-auto px-4 py-1.5 text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg text-sm font-medium transition flex items-center justify-center gap-2">
+        <button id="copyAllMdBtn" class="px-3.5 py-1.5 bg-white border border-blue-300 hover:bg-blue-100 text-blue-800 rounded-lg text-xs font-medium transition flex items-center gap-1.5 shadow-sm">
           <i class="fa-regular fa-copy"></i> Copy Markdown Summary
         </button>
       </div>
 
-      <!-- Diff Table -->
-      <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <div class="overflow-x-auto">
-          <table class="w-full text-left text-sm text-slate-600">
-            <thead class="bg-slate-50 text-slate-700 uppercase font-semibold text-xs border-b border-slate-200">
-              <tr>
-                <th class="py-3 px-4">Component / Package</th>
-                <th class="py-3 px-4">Status</th>
-                <th id="thFrom" class="py-3 px-4 font-mono text-xs">Base Version</th>
-                <th id="thTo" class="py-3 px-4 font-mono text-xs">Target Version</th>
-              </tr>
-            </thead>
-            <tbody id="diffTableBody" class="divide-y divide-slate-100"></tbody>
-          </table>
-        </div>
-      </div>
+      <!-- Container for aggregated What's New cards -->
+      <div id="whatsNewContainer" class="space-y-6"></div>
     </div>
   </div>
 
   <script>
-    // In-memory runtime cache for parsed catalog manifests
     const catalogCache = new Map();
-    let currentDiff = null;
+    let allDiscoveredTags = [];
 
-    // Default seed catalog tags to ensure instant UI responsiveness
+    // Built-in initial list to guarantee immediate rendering
     const SEED_TAGS = [
+      "v9-260918-amd64",
       "v9-260625-amd64",
       "v9-250527-amd64",
       "v9-241126-amd64",
@@ -171,53 +126,32 @@
     ];
 
     /**
-     * Dynamically discovers all catalog versions directly from the live GitHub repository
+     * Discovers all available catalogs dynamically from GitHub Pages tree
      */
-    async function discoverLiveCatalogs() {
-      const status = document.getElementById('statusIndicator');
-      let tags = new Set(SEED_TAGS);
+    async function discoverCatalogs() {
+      const tags = new Set(SEED_TAGS);
 
       try {
-        // Query the Git Trees API for ibm-mas/cli gh-pages branch (where all catalogs are deployed)
-        const treeUrls = [
-          'https://api.github.com/repos/ibm-mas/cli/git/trees/gh-pages?recursive=1',
-          'https://api.github.com/repos/ibm-mas/cli/contents/catalogs'
-        ];
-
-        for (const url of treeUrls) {
-          try {
-            const res = await fetch(url);
-            if (res.ok) {
-              const data = await res.json();
-              if (data.tree) {
-                // Parse tree items inside catalogs/
-                data.tree.forEach(item => {
-                  const match = item.path.match(/^catalogs\/([^\/]+)/);
-                  if (match && match[1] && (match[1].startsWith('v8-') || match[1].startsWith('v9-'))) {
-                    tags.add(match[1].replace('.json', ''));
-                  }
-                });
-              } else if (Array.isArray(data)) {
-                data.forEach(item => {
-                  const name = item.name.replace('.json', '');
-                  if (name.startsWith('v8-') || name.startsWith('v9-')) {
-                    tags.add(name);
-                  }
-                });
+        const res = await fetch('https://api.github.com/repos/ibm-mas/cli/git/trees/gh-pages?recursive=1');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.tree) {
+            data.tree.forEach(item => {
+              const match = item.path.match(/^catalogs\/([^\/]+)/);
+              if (match && match[1] && (match[1].startsWith('v8-') || match[1].startsWith('v9-'))) {
+                tags.add(match[1].replace('.json', ''));
               }
-              break;
-            }
-          } catch (_) {}
+            });
+          }
         }
       } catch (err) {
-        console.warn('Live discovery fallback:', err);
+        console.warn('Discovery fallback used');
       }
 
-      // Sort tags in descending order (newest v9 at top)
-      const sortedTags = Array.from(tags).sort((a, b) => b.localeCompare(a, undefined, { numeric: true, sensitivity: 'base' }));
+      allDiscoveredTags = Array.from(tags).sort((a, b) => b.localeCompare(a, undefined, { numeric: true, sensitivity: 'base' }));
+      document.getElementById('catalogCountBadge').innerText = `${allDiscoveredTags.length} catalogs synced`;
 
-      document.getElementById('catalogCountBadge').innerText = `${sortedTags.length} catalogs synced`;
-      populateDropdowns(sortedTags);
+      populateDropdowns(allDiscoveredTags);
     }
 
     function populateDropdowns(tags) {
@@ -232,214 +166,238 @@
       const fromParam = params.get('from');
       const toParam = params.get('to');
 
-      // Default: Target is the latest tag (index 0), Base is an older tag (index 1 or 4)
-      fromSelect.value = (fromParam && tags.includes(fromParam)) ? fromParam : (tags[4] || tags[1] || tags[0]);
+      // Default: Target is latest (index 0), Base is an older release (index 3 or 4)
+      fromSelect.value = (fromParam && tags.includes(fromParam)) ? fromParam : (tags[3] || tags[1]);
       toSelect.value = (toParam && tags.includes(toParam)) ? toParam : tags[0];
 
-      runDiff();
+      extractWhatsNew();
     }
 
     /**
-     * Fetches and parses live catalog data directly from ibm-mas.github.io
+     * Fetches and parses the live HTML catalog page to extract the "What's New" content and links
      */
-    async function fetchCatalog(tag) {
+    async function fetchWhatsNewForCatalog(tag) {
       if (catalogCache.has(tag)) {
         return catalogCache.get(tag);
       }
 
-      const endpoints = [
-        `https://ibm-mas.github.io/cli/catalogs/${tag}/index.json`,
-        `https://raw.githubusercontent.com/ibm-mas/cli/master/catalogs/${tag}.json`,
-        `https://raw.githubusercontent.com/ibm-mas/cli/gh-pages/catalogs/${tag}/index.json`
-      ];
+      const catalogUrl = `https://ibm-mas.github.io/cli/catalogs/${tag}/`;
 
-      for (const url of endpoints) {
-        try {
-          const res = await fetch(url);
-          if (res.ok) {
-            const raw = await res.json();
-            const normalized = parseCatalogJson(raw);
-            catalogCache.set(tag, normalized);
-            return normalized;
-          }
-        } catch (_) {}
-      }
-
-      // If json endpoints fail, attempt extracting table data directly from HTML page
       try {
-        const htmlRes = await fetch(`https://ibm-mas.github.io/cli/catalogs/${tag}/`);
-        if (htmlRes.ok) {
-          const htmlText = await htmlRes.text();
-          const parsedFromHtml = parseCatalogHtml(htmlText);
-          if (Object.keys(parsedFromHtml).length > 0) {
-            catalogCache.set(tag, parsedFromHtml);
-            return parsedFromHtml;
+        const res = await fetch(catalogUrl);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const htmlText = await res.text();
+
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(htmlText, 'text/html');
+
+        // Look for What's New section headers or content
+        let whatsNewLinks = [];
+        let whatsNewContent = [];
+
+        // 1. Extract all links under any heading containing "What's New" or the main content section
+        const headings = Array.from(doc.querySelectorAll('h1, h2, h3, h4'));
+        const whatsNewHeading = headings.find(h => /what'?s new/i.test(h.textContent));
+
+        if (whatsNewHeading) {
+          let curr = whatsNewHeading.nextElementSibling;
+          while (curr && !['H1', 'H2'].includes(curr.tagName)) {
+            // Collect links
+            const links = curr.querySelectorAll('a');
+            links.forEach(a => {
+              const href = a.getAttribute('href');
+              const text = a.textContent.trim();
+              if (href && text) {
+                // Resolve relative URLs to full IBM documentation links
+                const fullUrl = href.startsWith('http') ? href : new URL(href, catalogUrl).href;
+                whatsNewLinks.push({ title: text, url: fullUrl });
+              }
+            });
+
+            // Collect text bullet points / paragraphs
+            if (curr.tagName === 'UL' || curr.tagName === 'OL') {
+              curr.querySelectorAll('li').forEach(li => {
+                whatsNewContent.push(li.innerHTML.trim());
+              });
+            } else if (curr.tagName === 'P') {
+              whatsNewContent.push(curr.innerHTML.trim());
+            }
+
+            curr = curr.nextElementSibling;
           }
         }
-      } catch (_) {}
 
-      // Fallback synthetic approximations for major known tags if offline
-      return generateFallbackData(tag);
-    }
-
-    function parseCatalogJson(raw) {
-      const pkgs = raw.packages || raw.operators || raw.channels || raw.components || raw;
-      const result = {};
-
-      for (const [name, val] of Object.entries(pkgs)) {
-        if (typeof val === 'string') {
-          result[name] = val;
-        } else if (val && typeof val === 'object') {
-          result[name] = val.version || val.defaultVersion || val.channels?.[0]?.currentCSV || 'installed';
+        // 2. If no explicit heading found, extract documentation links that mention "what's new", "release notes", or IBM doc sections
+        if (whatsNewLinks.length === 0) {
+          const allLinks = doc.querySelectorAll('a');
+          allLinks.forEach(a => {
+            const href = a.getAttribute('href') || '';
+            const text = a.textContent.trim();
+            if (/what'?s new|release notes|whats_new|announcement/i.test(text + ' ' + href)) {
+              const fullUrl = href.startsWith('http') ? href : new URL(href, catalogUrl).href;
+              whatsNewLinks.push({ title: text || 'What\'s New Announcement', url: fullUrl });
+            }
+          });
         }
+
+        // Deduplicate links by URL
+        const uniqueLinks = [];
+        const seen = new Set();
+        for (const item of whatsNewLinks) {
+          if (!seen.has(item.url)) {
+            seen.add(item.url);
+            uniqueLinks.push(item);
+          }
+        }
+
+        const result = {
+          tag,
+          catalogUrl,
+          links: uniqueLinks,
+          content: whatsNewContent
+        };
+
+        catalogCache.set(tag, result);
+        return result;
+      } catch (err) {
+        // Fallback structure pointing to catalog page
+        return {
+          tag,
+          catalogUrl,
+          links: [
+            {
+              title: `View ${tag} Official Catalog & Release Notes`,
+              url: catalogUrl
+            }
+          ],
+          content: [`Detailed release notes available on the official catalog page.`]
+        };
       }
-      return result;
     }
 
-    function parseCatalogHtml(html) {
-      const doc = new DOMParser().parseFromString(html, 'text/html');
-      const result = {};
-      const rows = doc.querySelectorAll('table tbody tr');
+    /**
+     * Determines which catalogs fall in the selected range between From and To
+     */
+    function getCatalogsInRange(fromTag, toTag) {
+      const idxFrom = allDiscoveredTags.indexOf(fromTag);
+      const idxTo = allDiscoveredTags.indexOf(toTag);
 
-      rows.forEach(row => {
-        const cols = row.querySelectorAll('td');
-        if (cols.length >= 2) {
-          const name = cols[0].textContent.trim();
-          const version = cols[1].textContent.trim();
-          if (name && version) result[name] = version;
-        }
-      });
-      return result;
-    }
-
-    function generateFallbackData(tag) {
-      const versionMatch = tag.match(/v(\d+)-/);
-      const major = versionMatch ? versionMatch[1] : '9';
-      return {
-        "ibm-mas": `${major}.0.x`,
-        "ibm-mas-core": `${major}.0.x`,
-        "ibm-mas-manage": `${major}.0.x`,
-        "ibm-mas-monitor": `${major}.0.x`,
-        "ibm-mas-health": `${major}.0.x`,
-        "ibm-mas-predict": `${major}.0.x`,
-        "ibm-mas-visualinspection": `${major}.0.x`,
-        "ibm-mas-assist": `${major}.0.x`,
-        "ibm-mas-iot": `${major}.0.x`,
-        "ibm-mas-optimizer": `${major}.0.x`,
-        "ibm-common-service-operator": major === '9' ? '4.6.0' : '3.23.0'
-      };
-    }
-
-    function computeDiff(base, target) {
-      const allKeys = Array.from(new Set([...Object.keys(base), ...Object.keys(target)])).sort();
-      const items = [];
-      let added = 0, upgraded = 0, removed = 0, unchanged = 0;
-
-      for (const key of allKeys) {
-        const vFrom = base[key];
-        const vTo = target[key];
-
-        if (!vFrom && vTo) {
-          added++;
-          items.push({ name: key, status: 'added', from: '-', to: vTo });
-        } else if (vFrom && !vTo) {
-          removed++;
-          items.push({ name: key, status: 'removed', from: vFrom, to: '-' });
-        } else if (vFrom !== vTo) {
-          upgraded++;
-          items.push({ name: key, status: 'upgraded', from: vFrom, to: vTo });
-        } else {
-          unchanged++;
-          items.push({ name: key, status: 'unchanged', from: vFrom, to: vTo });
-        }
+      if (idxFrom === -1 || idxTo === -1) {
+        return [toTag];
       }
 
-      return { items, stats: { added, upgraded, removed, unchanged } };
+      const start = Math.min(idxFrom, idxTo);
+      const end = Math.max(idxFrom, idxTo);
+
+      // Return slice from latest down to the selected base
+      return allDiscoveredTags.slice(start, end + 1);
     }
 
-    function renderTable(diff, filter = '') {
-      const tbody = document.getElementById('diffTableBody');
-      const filtered = diff.items.filter(item => item.name.toLowerCase().includes(filter.toLowerCase()));
-
-      const badgeMap = {
-        added: '<span class="px-2.5 py-1 text-xs rounded-full bg-emerald-100 text-emerald-800 font-semibold">New</span>',
-        upgraded: '<span class="px-2.5 py-1 text-xs rounded-full bg-blue-100 text-blue-800 font-semibold">Updated</span>',
-        removed: '<span class="px-2.5 py-1 text-xs rounded-full bg-rose-100 text-rose-800 font-semibold">Removed</span>',
-        unchanged: '<span class="px-2.5 py-1 text-xs rounded-full bg-slate-100 text-slate-600">Unchanged</span>'
-      };
-
-      if (filtered.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="4" class="text-center py-8 text-slate-400">No components match your filter.</td></tr>`;
-        return;
-      }
-
-      tbody.innerHTML = filtered.map(item => `
-        <tr class="hover:bg-slate-50 transition font-mono text-xs">
-          <td class="py-3 px-4 font-semibold font-sans text-sm text-slate-800">${item.name}</td>
-          <td class="py-3 px-4">${badgeMap[item.status]}</td>
-          <td class="py-3 px-4 text-slate-500">${item.from}</td>
-          <td class="py-3 px-4 ${item.status === 'upgraded' ? 'text-blue-600 font-bold' : item.status === 'added' ? 'text-emerald-600 font-bold' : ''}">
-            ${item.to}
-          </td>
-        </tr>
-      `).join('');
-    }
-
-    async function runDiff() {
-      const fromSelect = document.getElementById('fromVersionSelect');
-      const toSelect = document.getElementById('toVersionSelect');
-      const fromVal = fromSelect.value;
-      const toVal = toSelect.value;
+    async function extractWhatsNew() {
+      const fromVal = document.getElementById('fromVersionSelect').value;
+      const toVal = document.getElementById('toVersionSelect').value;
       const status = document.getElementById('statusIndicator');
+      const container = document.getElementById('whatsNewContainer');
+      const summaryBar = document.getElementById('summaryBar');
 
       if (!fromVal || !toVal) return;
 
-      // Update URL parameters for easy link sharing
       const url = new URL(window.location);
       url.searchParams.set('from', fromVal);
       url.searchParams.set('to', toVal);
       window.history.pushState({}, '', url);
 
-      status.innerText = `Fetching live manifests for ${fromVal} and ${toVal}...`;
+      status.innerText = `Extracting What's New between ${fromVal} and ${toVal}...`;
       status.className = "text-xs text-blue-600 italic";
 
+      container.innerHTML = `
+        <div class="p-8 text-center bg-white rounded-2xl border border-slate-200">
+          <i class="fa-solid fa-circle-notch fa-spin text-3xl text-blue-600 mb-3"></i>
+          <p class="text-sm font-medium text-slate-700">Fetching live release notes & documentation links from MAS catalog pages...</p>
+        </div>
+      `;
+
       try {
-        const [baseData, targetData] = await Promise.all([
-          fetchCatalog(fromVal),
-          fetchCatalog(toVal)
-        ]);
+        const targetCatalogs = getCatalogsInRange(fromVal, toVal);
+        const results = await Promise.all(targetCatalogs.map(t => fetchWhatsNewForCatalog(t)));
 
-        currentDiff = computeDiff(baseData, targetData);
+        summaryBar.classList.remove('hidden');
+        document.getElementById('summaryTitle').innerText = `What's New: ${fromVal} ➔ ${toVal}`;
+        document.getElementById('summarySubtitle').innerText = `Displaying release notes across ${results.length} catalog release(s)`;
 
-        document.getElementById('thFrom').innerText = fromVal;
-        document.getElementById('thTo').innerText = toVal;
-        document.getElementById('statAdded').innerText = currentDiff.stats.added;
-        document.getElementById('statUpgraded').innerText = currentDiff.stats.upgraded;
-        document.getElementById('statRemoved').innerText = currentDiff.stats.removed;
-        document.getElementById('statUnchanged').innerText = currentDiff.stats.unchanged;
+        container.innerHTML = results.map(item => `
+          <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden transition hover:shadow-md">
+            <!-- Catalog Header -->
+            <div class="bg-slate-900 text-white px-6 py-4 flex flex-wrap items-center justify-between gap-3">
+              <div class="flex items-center gap-3">
+                <span class="px-2.5 py-1 text-xs rounded-full bg-blue-500/20 text-blue-300 font-mono font-bold border border-blue-400/30">
+                  ${item.tag}
+                </span>
+                <span class="text-sm font-semibold text-slate-200">Release Notes & Updates</span>
+              </div>
+              <a href="${item.catalogUrl}" target="_blank" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition">
+                <span>Open Catalog Page</span>
+                <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
+              </a>
+            </div>
 
-        renderTable(currentDiff, document.getElementById('tableSearch').value);
+            <!-- Content Area -->
+            <div class="p-6 space-y-6">
+              <!-- Links Section -->
+              ${item.links.length > 0 ? `
+                <div>
+                  <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3 flex items-center gap-2">
+                    <i class="fa-solid fa-link text-blue-600"></i> What's New Articles & Documentation
+                  </h4>
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    ${item.links.map(l => `
+                      <a href="${l.url}" target="_blank" class="p-3 rounded-xl border border-slate-200 hover:border-blue-500 hover:bg-blue-50/50 transition flex items-start justify-between group">
+                        <span class="text-sm font-medium text-slate-800 group-hover:text-blue-600 transition pr-2">
+                          ${l.title}
+                        </span>
+                        <i class="fa-solid fa-arrow-up-right-from-square text-xs text-slate-400 group-hover:text-blue-600 mt-1 flex-shrink-0 transition"></i>
+                      </a>
+                    `).join('')}
+                  </div>
+                </div>
+              ` : ''}
 
-        status.innerText = `Comparison ready: ${fromVal} -> ${toVal}`;
+              <!-- Extracted Highlights / Text -->
+              ${item.content.length > 0 ? `
+                <div>
+                  <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3 flex items-center gap-2">
+                    <i class="fa-solid fa-list-check text-emerald-600"></i> Highlights & Changes
+                  </h4>
+                  <div class="bg-slate-50 rounded-xl p-4 border border-slate-200 prose text-sm text-slate-700 space-y-2">
+                    ${item.content.map(c => `<div>${c}</div>`).join('')}
+                  </div>
+                </div>
+              ` : `
+                <div class="text-xs text-slate-400 italic">
+                  See linked documentation above for detailed functional updates in this release.
+                </div>
+              `}
+            </div>
+          </div>
+        `).join('');
+
+        status.innerText = `Extracted What's New for ${targetCatalogs.length} catalog release(s)`;
         status.className = "text-xs text-emerald-600 font-medium";
       } catch (err) {
+        container.innerHTML = `<div class="p-6 text-rose-600 bg-rose-50 border border-rose-200 rounded-xl text-sm">Failed to extract What's New: ${err.message}</div>`;
         status.innerText = `Error: ${err.message}`;
         status.className = "text-xs text-rose-600 font-medium";
       }
     }
 
-    // Attach Event Listeners
-    document.getElementById('compareBtn').addEventListener('click', runDiff);
-    document.getElementById('fromVersionSelect').addEventListener('change', runDiff);
-    document.getElementById('toVersionSelect').addEventListener('change', runDiff);
+    // Attach Event Handlers
+    document.getElementById('compareBtn').addEventListener('click', extractWhatsNew);
+    document.getElementById('fromVersionSelect').addEventListener('change', extractWhatsNew);
+    document.getElementById('toVersionSelect').addEventListener('change', extractWhatsNew);
 
-    document.getElementById('tableSearch').addEventListener('input', (e) => {
-      if (currentDiff) renderTable(currentDiff, e.target.value);
-    });
-
-    document.getElementById('refreshCatalogBtn').addEventListener('click', () => {
+    document.getElementById('refreshBtn').addEventListener('click', () => {
       catalogCache.clear();
-      discoverLiveCatalogs();
+      discoverCatalogs();
     });
 
     document.getElementById('swapBtn').addEventListener('click', () => {
@@ -448,31 +406,36 @@
       const temp = fromSelect.value;
       fromSelect.value = toSelect.value;
       toSelect.value = temp;
-      runDiff();
+      extractWhatsNew();
     });
 
-    document.getElementById('exportMdBtn').addEventListener('click', () => {
-      if (!currentDiff) return;
-      const from = document.getElementById('fromVersionSelect').value;
-      const to = document.getElementById('toVersionSelect').value;
+    document.getElementById('copyAllMdBtn').addEventListener('click', () => {
+      const fromVal = document.getElementById('fromVersionSelect').value;
+      const toVal = document.getElementById('toVersionSelect').value;
+      let md = `## MAS What's New Summary: ${fromVal} -> ${toVal}\n\n`;
 
-      let md = `### MAS Catalog Diff: \`${from}\` -> \`${to}\`\n\n`;
-      md += `| Component | Status | ${from} | ${to} |\n`;
-      md += `| :--- | :--- | :--- | :--- |\n`;
-
-      currentDiff.items
-        .filter(i => i.status !== 'unchanged')
-        .forEach(i => {
-          md += `| **${i.name}** | ${i.status} | \`${i.from}\` | \`${i.to}\` |\n`;
-        });
+      const targetCatalogs = getCatalogsInRange(fromVal, toVal);
+      targetCatalogs.forEach(t => {
+        const item = catalogCache.get(t);
+        if (item) {
+          md += `### Catalog Release: \`${t}\`\n`;
+          md += `- **Catalog Page**: [View Catalog](${item.catalogUrl})\n`;
+          if (item.links.length) {
+            md += `\n**What's New Documentation Links:**\n`;
+            item.links.forEach(l => {
+              md += `- [${l.title}](${l.url})\n`;
+            });
+          }
+          md += `\n---\n\n`;
+        }
+      });
 
       navigator.clipboard.writeText(md).then(() => {
-        alert('Markdown table copied to clipboard!');
+        alert('What\'s New Markdown summary copied to clipboard!');
       });
     });
 
-    // Start dynamic discovery on page load
-    discoverLiveCatalogs();
+    discoverCatalogs();
   </script>
 </body>
 </html>
