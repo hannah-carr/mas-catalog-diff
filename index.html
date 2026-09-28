@@ -34,9 +34,14 @@
             Select your starting and target MAS releases to discover what's new, security fixes, and the matching catalog source.
           </p>
         </div>
-        <a href="https://github.com/ibm-mas/cli" target="_blank" class="text-slate-400 hover:text-slate-700 text-2xl transition">
-          <i class="fa-brands fa-github"></i>
-        </a>
+        <div class="flex items-center gap-3">
+          <button id="syncLiveBtn" title="Sync newly published releases from GitHub" class="text-xs bg-white border border-slate-200 text-slate-600 px-3 py-1.5 rounded-lg hover:bg-slate-100 flex items-center gap-1.5 transition shadow-sm">
+            <i class="fa-solid fa-arrows-rotate"></i> Check for New Releases
+          </button>
+          <a href="https://github.com/ibm-mas/cli" target="_blank" class="text-slate-400 hover:text-slate-700 text-2xl transition">
+            <i class="fa-brands fa-github"></i>
+          </a>
+        </div>
       </div>
     </header>
 
@@ -57,10 +62,13 @@
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
         <!-- Starting Version -->
         <div>
-          <label for="fromVersionSelect" class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
-            1. Current Starting Version
+          <label for="fromVersionSelect" class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2 flex justify-between">
+            <span>1. Current Starting Version</span>
+            <span id="versionCountBadge" class="text-[10px] text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full font-mono">syncing...</span>
           </label>
-          <select id="fromVersionSelect" class="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-base font-semibold cursor-pointer"></select>
+          <select id="fromVersionSelect" class="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-base font-semibold cursor-pointer">
+            <option value="">Loading versions...</option>
+          </select>
         </div>
 
         <!-- Target Version -->
@@ -68,12 +76,14 @@
           <label for="toVersionSelect" class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
             2. Target Version to Upgrade To
           </label>
-          <select id="toVersionSelect" class="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-base font-semibold cursor-pointer"></select>
+          <select id="toVersionSelect" class="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-base font-semibold cursor-pointer">
+            <option value="">Loading versions...</option>
+          </select>
         </div>
       </div>
 
       <div class="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-slate-100">
-        <span id="statusIndicator" class="text-xs text-slate-500 italic">Select versions to see upgrade path and catalog source.</span>
+        <span id="statusIndicator" class="text-xs text-slate-500 italic">Select versions to view the upgrade path and catalog source.</span>
         <button id="compareBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-2.5 rounded-xl text-sm shadow-sm transition flex items-center gap-2">
           <i class="fa-solid fa-sparkles"></i> View Upgrade Summary
         </button>
@@ -119,12 +129,14 @@
   <script>
     const catalogCache = new Map();
     let currentArch = 'amd64';
+    let dynamicVersions = [];
 
-    // Standard MAS version definitions and catalog mapping
-    const MAS_VERSIONS = [
+    // Core known mapping base
+    const SEED_VERSIONS = [
       { version: "9.0.5", tagBase: "v9-260918", major: "9.0" },
       { version: "9.0.4.1", tagBase: "v9-260827", major: "9.0" },
       { version: "9.0.4", tagBase: "v9-260730", major: "9.0" },
+      { version: "9.0.4", tagBase: "v9-260625", major: "9.0" },
       { version: "9.0.3", tagBase: "v9-250527", major: "9.0" },
       { version: "9.0.2", tagBase: "v9-241126", major: "9.0" },
       { version: "9.0.1", tagBase: "v9-240924", major: "9.0" },
@@ -174,39 +186,84 @@
       }
     };
 
+    /**
+     * Dynamically queries the GitHub API to discover newly published catalog folders in real-time
+     */
+    async function syncDynamicCatalogReleases() {
+      const knownBases = new Map(SEED_VERSIONS.map(v => [v.tagBase, v]));
+
+      try {
+        const res = await fetch('https://api.github.com/repos/ibm-mas/cli/git/trees/gh-pages?recursive=1');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.tree) {
+            data.tree.forEach(item => {
+              const match = item.path.match(/^catalogs\/([^\/]+)/);
+              if (match && match[1]) {
+                const tag = match[1].replace('.json', '');
+                const tagBase = tag.replace(/-(amd64|ppc64le|s390x)$/, '');
+                
+                if ((tagBase.startsWith('v8-') || tagBase.startsWith('v9-') || tagBase.startsWith('v10-')) && !knownBases.has(tagBase)) {
+                  // Infer version details for newly discovered catalog tag
+                  const majorMatch = tagBase.match(/v(\d+)-/);
+                  const majorNum = majorMatch ? majorMatch[1] : '9';
+                  const inferredMajor = majorNum === '8' ? '8.11' : `${majorNum}.0`;
+                  
+                  knownBases.set(tagBase, {
+                    version: `${inferredMajor}.x (${tagBase})`,
+                    tagBase: tagBase,
+                    major: inferredMajor
+                  });
+                }
+              }
+            });
+          }
+        }
+      } catch (err) {
+        console.warn('Live catalog tree sync skipped:', err);
+      }
+
+      // Sort descending by tagBase (newest releases first)
+      dynamicVersions = Array.from(knownBases.values()).sort((a, b) => 
+        b.tagBase.localeCompare(a.tagBase, undefined, { numeric: true, sensitivity: 'base' })
+      );
+
+      document.getElementById('versionCountBadge').innerText = `${dynamicVersions.length} releases synced`;
+      populateVersionDropdowns();
+    }
+
     function populateVersionDropdowns() {
       const fromSelect = document.getElementById('fromVersionSelect');
       const toSelect = document.getElementById('toVersionSelect');
 
-      const options = MAS_VERSIONS.map(v => 
-        `<option value="${v.version}">MAS ${v.version}</option>`
+      // Deduplicate by version name
+      const options = dynamicVersions.map(v => 
+        `<option value="${v.tagBase}">MAS ${v.version} — [${v.tagBase}]</option>`
       ).join('');
 
       fromSelect.innerHTML = options;
       toSelect.innerHTML = options;
 
-      // Default: Current = 8.11.0, Target = Latest 9.0.5
-      fromSelect.value = "8.11.0";
-      toSelect.value = MAS_VERSIONS[0].version;
+      // Select default from & to
+      const defaultFrom = dynamicVersions.find(v => v.tagBase === "v8-231128") || dynamicVersions[dynamicVersions.length - 1];
+      const defaultTo = dynamicVersions[0];
+
+      fromSelect.value = defaultFrom.tagBase;
+      toSelect.value = defaultTo.tagBase;
 
       extractWhatsNew();
     }
 
-    function getCatalogTagForVersion(versionStr) {
-      const entry = MAS_VERSIONS.find(v => v.version === versionStr);
-      return entry ? `${entry.tagBase}-${currentArch}` : null;
-    }
-
-    function getFutureCatalogsInRange(fromVer, toVer) {
-      const fromIdx = MAS_VERSIONS.findIndex(v => v.version === fromVer);
-      const toIdx = MAS_VERSIONS.findIndex(v => v.version === toVer);
+    function getFutureCatalogsInRange(fromTagBase, toTagBase) {
+      const fromIdx = dynamicVersions.findIndex(v => v.tagBase === fromTagBase);
+      const toIdx = dynamicVersions.findIndex(v => v.tagBase === toTagBase);
 
       if (fromIdx === -1 || toIdx === -1 || toIdx >= fromIdx) {
         return [];
       }
 
       // Slice versions strictly between current and target (chronological ascending)
-      const subset = MAS_VERSIONS.slice(toIdx, fromIdx);
+      const subset = dynamicVersions.slice(toIdx, fromIdx);
       return subset.reverse().map(v => ({
         version: v.version,
         major: v.major,
@@ -214,9 +271,9 @@
       }));
     }
 
-    function detectMajorTransitions(fromVer, toVer) {
-      const entryFrom = MAS_VERSIONS.find(v => v.version === fromVer);
-      const entryTo = MAS_VERSIONS.find(v => v.version === toVer);
+    function detectMajorTransitions(fromTagBase, toTagBase) {
+      const entryFrom = dynamicVersions.find(v => v.tagBase === fromTagBase);
+      const entryTo = dynamicVersions.find(v => v.tagBase === toTagBase);
 
       if (!entryFrom || !entryTo || entryFrom.major === entryTo.major) return [];
 
@@ -314,24 +371,27 @@
     }
 
     async function extractWhatsNew() {
-      const fromVer = document.getElementById('fromVersionSelect').value;
-      const toVer = document.getElementById('toVersionSelect').value;
+      const fromTagBase = document.getElementById('fromVersionSelect').value;
+      const toTagBase = document.getElementById('toVersionSelect').value;
       const status = document.getElementById('statusIndicator');
       const container = document.getElementById('categoriesContainer');
       const catalogSourceCard = document.getElementById('catalogSourceCard');
       const majorVersionSection = document.getElementById('majorVersionSection');
 
-      if (!fromVer || !toVer) return;
+      if (!fromTagBase || !toTagBase) return;
 
-      const targetTag = getCatalogTagForVersion(toVer);
+      const targetTag = `${toTagBase}-${currentArch}`;
+      const toObj = dynamicVersions.find(v => v.tagBase === toTagBase);
+      const fromObj = dynamicVersions.find(v => v.tagBase === fromTagBase);
+
       if (targetTag) {
         catalogSourceCard.classList.remove('hidden');
-        document.getElementById('targetCatalogTitle').innerText = `${targetTag} (for MAS ${toVer})`;
+        document.getElementById('targetCatalogTitle').innerText = `${targetTag} (MAS ${toObj ? toObj.version : ''})`;
         document.getElementById('targetCatalogLink').href = `https://ibm-mas.github.io/cli/catalogs/${targetTag}/`;
         document.getElementById('targetImageTag').innerText = `icr.io/cpopen/ibm-mas-operator-catalog:${targetTag}`;
       }
 
-      const futureReleases = getFutureCatalogsInRange(fromVer, toVer);
+      const futureReleases = getFutureCatalogsInRange(fromTagBase, toTagBase);
 
       if (futureReleases.length === 0) {
         majorVersionSection.classList.add('hidden');
@@ -340,7 +400,7 @@
             <i class="fa-solid fa-circle-info text-3xl text-amber-500 mb-3"></i>
             <h3 class="text-base font-bold text-slate-800">No Upgrade Steps Detected</h3>
             <p class="text-sm text-slate-500 mt-1 max-w-md mx-auto">
-              Target version (MAS ${toVer}) is already installed or older than your current starting version (MAS ${fromVer}).
+              Target version is already installed or older than your current starting version.
             </p>
           </div>
         `;
@@ -349,7 +409,7 @@
         return;
       }
 
-      status.innerText = `Loading highlights for MAS ${fromVer} ➔ MAS ${toVer}...`;
+      status.innerText = `Loading highlights for upgrade path...`;
       status.className = "text-xs text-blue-600 italic";
 
       container.innerHTML = `
@@ -363,7 +423,7 @@
         const results = await Promise.all(futureReleases.map(fetchAndCategorizeCatalog));
 
         // Major Version Transition Callout
-        const majorTransitions = detectMajorTransitions(fromVer, toVer);
+        const majorTransitions = detectMajorTransitions(fromTagBase, toTagBase);
         if (majorTransitions.length > 0) {
           majorVersionSection.classList.remove('hidden');
           majorVersionSection.innerHTML = `
@@ -415,7 +475,7 @@
           majorVersionSection.classList.add('hidden');
         }
 
-        // Render only categories with actual items (suppress all empty blocks)
+        // Render only categories with actual items
         let html = '';
 
         const featuresList = results.filter(r => r.features.length > 0);
@@ -481,7 +541,7 @@
         }
 
         container.innerHTML = html;
-        status.innerText = `Upgrade path ready (MAS ${fromVer} ➔ MAS ${toVer})`;
+        status.innerText = `Upgrade path ready`;
         status.className = "text-xs text-emerald-600 font-medium";
       } catch (err) {
         container.innerHTML = `<div class="p-6 text-rose-600 bg-rose-50 border border-rose-200 rounded-xl text-sm">Failed to extract: ${err.message}</div>`;
@@ -560,12 +620,19 @@
       });
     });
 
+    // Manual Re-sync button
+    document.getElementById('syncLiveBtn').addEventListener('click', () => {
+      catalogCache.clear();
+      syncDynamicCatalogReleases();
+    });
+
     // Event Handlers
     document.getElementById('compareBtn').addEventListener('click', extractWhatsNew);
     document.getElementById('fromVersionSelect').addEventListener('change', extractWhatsNew);
     document.getElementById('toVersionSelect').addEventListener('change', extractWhatsNew);
 
-    populateVersionDropdowns();
+    // Initial load syncs with live GitHub Pages tree
+    syncDynamicCatalogReleases();
   </script>
 </body>
 </html>
