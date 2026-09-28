@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>IBM MAS - What's New & Changelog Comparator</title>
+  <title>IBM MAS - What's New Upgrade Comparator</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
   <style>
@@ -27,11 +27,11 @@
       <div class="flex items-center justify-between">
         <div>
           <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-3">
-            <span class="text-blue-600"><i class="fa-solid fa-newspaper"></i></span>
-            MAS "What's New" & Changelog
+            <span class="text-blue-600"><i class="fa-solid fa-arrow-trend-up"></i></span>
+            MAS Upgrade "What's New" Summarizer
           </h1>
           <p class="text-slate-600 mt-1 text-sm sm:text-base">
-            Compare two MAS catalog versions of the same architecture to extract New Features, Security & DT Fixes, and Component Updates.
+            Select your current MAS version and target upgrade version to extract all new features, DT fixes, and changes in the intermediate releases.
           </p>
         </div>
         <div class="flex items-center gap-3">
@@ -59,10 +59,10 @@
 
       <!-- Dropdown Selectors -->
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
-        <!-- Base Version -->
+        <!-- Current Version -->
         <div>
           <label for="fromVersionSelect" class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2 flex justify-between">
-            <span>Starting Version (From)</span>
+            <span>1. Current Installed Version (From)</span>
             <span id="catalogCountBadge" class="text-[10px] text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full font-mono">syncing...</span>
           </label>
           <select id="fromVersionSelect" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm font-medium cursor-pointer">
@@ -73,7 +73,7 @@
         <!-- Target Version -->
         <div>
           <label for="toVersionSelect" class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
-            Target Version (To)
+            2. Target Upgrade Version (To)
           </label>
           <select id="toVersionSelect" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm font-medium cursor-pointer">
             <option value="">Loading catalogs...</option>
@@ -82,13 +82,10 @@
       </div>
 
       <div class="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-slate-100">
-        <span id="statusIndicator" class="text-xs text-slate-500 italic">Select starting and target versions to pull What's New highlights.</span>
+        <span id="statusIndicator" class="text-xs text-slate-500 italic">Select your current and target versions to view what's new.</span>
         <div class="flex gap-3">
-          <button id="swapBtn" title="Swap versions" class="px-3 py-2 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl text-sm font-medium transition">
-            <i class="fa-solid fa-arrow-right-arrow-left"></i> Swap
-          </button>
           <button id="compareBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-2.5 rounded-xl text-sm shadow-sm transition flex items-center gap-2">
-            <i class="fa-solid fa-sparkles"></i> Extract What's New
+            <i class="fa-solid fa-sparkles"></i> Summarize Upgrade Highlights
           </button>
         </div>
       </div>
@@ -99,12 +96,20 @@
       <!-- Summary Bar -->
       <div id="summaryBar" class="bg-blue-50 border border-blue-200 rounded-xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 hidden">
         <div>
-          <h2 id="summaryTitle" class="text-base font-bold text-blue-900">What's New Summary</h2>
-          <p id="summarySubtitle" class="text-xs text-blue-700 mt-0.5">Aggregated changes grouped by category</p>
+          <h2 id="summaryTitle" class="text-base font-bold text-blue-900">Upgrade Highlights Summary</h2>
+          <p id="summarySubtitle" class="text-xs text-blue-700 mt-0.5">Showing updates introduced in future releases after your current version</p>
         </div>
         <button id="copyAllMdBtn" class="px-3.5 py-1.5 bg-white border border-blue-300 hover:bg-blue-100 text-blue-800 rounded-lg text-xs font-medium transition flex items-center gap-1.5 shadow-sm">
           <i class="fa-regular fa-copy"></i> Copy Markdown Summary
         </button>
+      </div>
+
+      <!-- Included Releases Badge Bar -->
+      <div id="releasesInScope" class="bg-white p-4 rounded-xl border border-slate-200 hidden">
+        <div class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2 flex items-center gap-2">
+          <i class="fa-solid fa-layer-group text-blue-600"></i> New Catalog Releases Included in this Upgrade:
+        </div>
+        <div id="releasesBadgeContainer" class="flex flex-wrap gap-2"></div>
       </div>
 
       <!-- Categories Container -->
@@ -117,18 +122,21 @@
     let currentArch = 'amd64';
     let allDiscoveredTags = [];
 
-    // Fallback seed tags per architecture
+    // Fallback seed catalog list
     const SEED_TAGS_MAP = {
       amd64: [
-        "v9-260918-amd64", "v9-260625-amd64", "v9-250527-amd64", "v9-241126-amd64", "v9-240924-amd64", "v9-240528-amd64",
+        "v9-260918-amd64", "v9-260827-amd64", "v9-260730-amd64", "v9-260625-amd64",
+        "v9-250527-amd64", "v9-241126-amd64", "v9-240924-amd64", "v9-240528-amd64",
         "v8-231128-amd64", "v8-230829-amd64", "v8-230530-amd64"
       ],
       ppc64le: [
-        "v9-260625-ppc64le", "v9-250527-ppc64le", "v9-241126-ppc64le", "v9-240924-ppc64le", "v9-240528-ppc64le",
+        "v9-260918-ppc64le", "v9-260827-ppc64le", "v9-260730-ppc64le", "v9-260625-ppc64le",
+        "v9-250527-ppc64le", "v9-241126-ppc64le", "v9-240924-ppc64le", "v9-240528-ppc64le",
         "v8-231128-ppc64le", "v8-230829-ppc64le", "v8-230530-ppc64le"
       ],
       s390x: [
-        "v9-260625-s390x", "v9-250527-s390x", "v9-241126-s390x", "v9-240924-s390x", "v9-240528-s390x",
+        "v9-260918-s390x", "v9-260827-s390x", "v9-260730-s390x", "v9-260625-s390x",
+        "v9-250527-s390x", "v9-241126-s390x", "v9-240924-s390x", "v9-240528-s390x",
         "v8-231128-s390x", "v8-230829-s390x"
       ]
     };
@@ -167,7 +175,7 @@
       const fromSelect = document.getElementById('fromVersionSelect');
       const toSelect = document.getElementById('toVersionSelect');
 
-      // Filter tags that match current architecture suffix
+      // Sort chronological descending (newest at index 0)
       const filteredTags = allDiscoveredTags
         .filter(t => t.endsWith(`-${currentArch}`))
         .sort((a, b) => b.localeCompare(a, undefined, { numeric: true, sensitivity: 'base' }));
@@ -182,10 +190,38 @@
       const fromParam = params.get('from');
       const toParam = params.get('to');
 
-      fromSelect.value = (fromParam && filteredTags.includes(fromParam)) ? fromParam : (filteredTags[3] || filteredTags[1] || filteredTags[0]);
+      // Example default: Current = 2 releases back, Target = Latest
+      fromSelect.value = (fromParam && filteredTags.includes(fromParam)) ? fromParam : (filteredTags[2] || filteredTags[1] || filteredTags[0]);
       toSelect.value = (toParam && filteredTags.includes(toParam)) ? toParam : filteredTags[0];
 
       extractWhatsNew();
+    }
+
+    /**
+     * Extracts only future releases strictly greater than the current version up to target version.
+     * Example: current = v9-260730-amd64, target = v9-260918-amd64
+     * Returns: [v9-260827-amd64, v9-260918-amd64] (excludes v9-260730-amd64)
+     */
+    function getFutureCatalogsInRange(currentTag, targetTag) {
+      // Tags sorted chronological ascending (oldest to newest)
+      const filteredAscending = allDiscoveredTags
+        .filter(t => t.endsWith(`-${currentArch}`))
+        .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+
+      const currentIdx = filteredAscending.indexOf(currentTag);
+      const targetIdx = filteredAscending.indexOf(targetTag);
+
+      if (currentIdx === -1 || targetIdx === -1) {
+        return [targetTag];
+      }
+
+      if (currentIdx >= targetIdx) {
+        // If current is same or newer than target
+        return [];
+      }
+
+      // Slice strictly after current version, up to and including target version
+      return filteredAscending.slice(currentIdx + 1, targetIdx + 1);
     }
 
     /**
@@ -211,7 +247,6 @@
         const htmlText = await res.text();
         const doc = new DOMParser().parseFromString(htmlText, 'text/html');
 
-        // Look for headings
         const headings = Array.from(doc.querySelectorAll('h1, h2, h3, h4'));
         const whatsNewHeading = headings.find(h => /what'?s new/i.test(h.textContent));
 
@@ -292,23 +327,14 @@
       }
     }
 
-    function getCatalogsInRange(fromTag, toTag) {
-      const filtered = allDiscoveredTags.filter(t => t.endsWith(`-${currentArch}`));
-      const idxFrom = filtered.indexOf(fromTag);
-      const idxTo = filtered.indexOf(toTag);
-
-      if (idxFrom === -1 || idxTo === -1) return [toTag];
-      const start = Math.min(idxFrom, idxTo);
-      const end = Math.max(idxFrom, idxTo);
-      return filtered.slice(start, end + 1);
-    }
-
     async function extractWhatsNew() {
       const fromVal = document.getElementById('fromVersionSelect').value;
       const toVal = document.getElementById('toVersionSelect').value;
       const status = document.getElementById('statusIndicator');
       const container = document.getElementById('categoriesContainer');
       const summaryBar = document.getElementById('summaryBar');
+      const releasesInScope = document.getElementById('releasesInScope');
+      const releasesBadgeContainer = document.getElementById('releasesBadgeContainer');
 
       if (!fromVal || !toVal) return;
 
@@ -318,23 +344,50 @@
       url.searchParams.set('arch', currentArch);
       window.history.pushState({}, '', url);
 
-      status.innerText = `Extracting changes between ${fromVal} and ${toVal}...`;
+      const targetCatalogs = getFutureCatalogsInRange(fromVal, toVal);
+
+      if (targetCatalogs.length === 0) {
+        summaryBar.classList.add('hidden');
+        releasesInScope.classList.add('hidden');
+        container.innerHTML = `
+          <div class="p-8 text-center bg-white rounded-2xl border border-slate-200">
+            <i class="fa-solid fa-circle-info text-3xl text-amber-500 mb-3"></i>
+            <h3 class="text-base font-bold text-slate-800">No Upgrade Steps Detected</h3>
+            <p class="text-sm text-slate-500 mt-1 max-w-md mx-auto">
+              Your selected <b>Target Version</b> is the same as or older than your <b>Current Version</b>. Please select a newer target version to calculate the upgrade What's New.
+            </p>
+          </div>
+        `;
+        status.innerText = `Current version is already up to date with or newer than target.`;
+        status.className = "text-xs text-amber-600 font-medium";
+        return;
+      }
+
+      status.innerText = `Extracting upgrade What's New for ${targetCatalogs.length} future release(s)...`;
       status.className = "text-xs text-blue-600 italic";
 
       container.innerHTML = `
         <div class="p-8 text-center bg-white rounded-2xl border border-slate-200">
           <i class="fa-solid fa-circle-notch fa-spin text-3xl text-blue-600 mb-3"></i>
-          <p class="text-sm font-medium text-slate-700">Extracting categorized What's New items and DT fixes from live catalogs...</p>
+          <p class="text-sm font-medium text-slate-700">Extracting categorized What's New items and DT fixes across ${targetCatalogs.length} future release(s)...</p>
         </div>
       `;
 
       try {
-        const targetCatalogs = getCatalogsInRange(fromVal, toVal);
         const results = await Promise.all(targetCatalogs.map(t => fetchAndCategorizeCatalog(t)));
 
         summaryBar.classList.remove('hidden');
-        document.getElementById('summaryTitle').innerText = `What's New (${currentArch}): ${fromVal} ➔ ${toVal}`;
-        document.getElementById('summarySubtitle').innerText = `Grouped across ${results.length} release(s)`;
+        releasesInScope.classList.remove('hidden');
+
+        document.getElementById('summaryTitle').innerText = `What's New Upgrade: ${fromVal} ➔ ${toVal}`;
+        document.getElementById('summarySubtitle').innerText = `Summarizing changes across ${results.length} future catalog release(s) (current version excluded)`;
+
+        releasesBadgeContainer.innerHTML = targetCatalogs.map(t => `
+          <a href="https://ibm-mas.github.io/cli/catalogs/${t}/" target="_blank" class="px-3 py-1 rounded-lg text-xs font-mono font-bold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 flex items-center gap-1.5 transition">
+            <span>+ ${t}</span>
+            <i class="fa-solid fa-arrow-up-right-from-square text-[9px]"></i>
+          </a>
+        `).join('');
 
         // Aggregate by Category
         let html = '';
@@ -347,7 +400,7 @@
                 <span class="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-lg"><i class="fa-solid fa-rocket"></i></span>
                 <h3 class="text-lg font-bold">1. New Features & Capabilities</h3>
               </div>
-              <span class="text-xs bg-white/20 px-3 py-1 rounded-full font-medium">By Catalog Release</span>
+              <span class="text-xs bg-white/20 px-3 py-1 rounded-full font-medium">Introduced After ${fromVal}</span>
             </div>
             <div class="p-6 space-y-6 divide-y divide-slate-100">
               ${results.map(r => renderCategoryVersionBlock(r.tag, r.catalogUrl, r.features, 'No new feature articles published in this catalog.')).join('')}
@@ -388,7 +441,7 @@
         `;
 
         container.innerHTML = html;
-        status.innerText = `Extracted categorized What's New across ${targetCatalogs.length} ${currentArch} catalog(s)`;
+        status.innerText = `Extracted upgrade changes across ${targetCatalogs.length} future ${currentArch} release(s)`;
         status.className = "text-xs text-emerald-600 font-medium";
       } catch (err) {
         container.innerHTML = `<div class="p-6 text-rose-600 bg-rose-50 border border-rose-200 rounded-xl text-sm">Failed to extract What's New: ${err.message}</div>`;
@@ -401,7 +454,7 @@
       return `
         <div class="pt-4 first:pt-0">
           <div class="flex items-center justify-between mb-3">
-            <span class="px-2.5 py-0.5 text-xs font-mono font-bold bg-slate-100 text-slate-800 rounded-md border border-slate-200">
+            <span class="px-2.5 py-0.5 text-xs font-mono font-bold bg-blue-50 text-blue-800 rounded-md border border-blue-200">
               ${tag}
             </span>
             <a href="${catalogUrl}" target="_blank" class="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1 font-medium">
@@ -472,22 +525,14 @@
       discoverCatalogs();
     });
 
-    document.getElementById('swapBtn').addEventListener('click', () => {
-      const fromSelect = document.getElementById('fromVersionSelect');
-      const toSelect = document.getElementById('toVersionSelect');
-      const temp = fromSelect.value;
-      fromSelect.value = toSelect.value;
-      toSelect.value = temp;
-      extractWhatsNew();
-    });
-
     document.getElementById('copyAllMdBtn').addEventListener('click', () => {
       const fromVal = document.getElementById('fromVersionSelect').value;
       const toVal = document.getElementById('toVersionSelect').value;
-      let md = `# IBM MAS What's New Report (${currentArch})\n`;
-      md += `**Range:** \`${fromVal}\` ➔ \`${toVal}\`\n\n`;
+      let md = `# IBM MAS Upgrade What's New Report (${currentArch})\n`;
+      md += `**Current Version:** \`${fromVal}\` ➔ **Target Upgrade:** \`${toVal}\`\n\n`;
 
-      const targetCatalogs = getCatalogsInRange(fromVal, toVal);
+      const targetCatalogs = getFutureCatalogsInRange(fromVal, toVal);
+      md += `**Releases Included in this Upgrade (${targetCatalogs.length}):** ${targetCatalogs.map(t => `\`${t}\``).join(', ')}\n\n`;
 
       ['features', 'securityAndFixes', 'otherUpdates'].forEach(cat => {
         const title = cat === 'features' ? '## 🚀 1. New Features & Capabilities' :
@@ -514,7 +559,7 @@
       });
 
       navigator.clipboard.writeText(md).then(() => {
-        alert('Categorized What\'s New Markdown report copied to clipboard!');
+        alert('Upgrade What\'s New Markdown report copied to clipboard!');
       });
     });
 
