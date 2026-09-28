@@ -31,7 +31,7 @@
             MAS Upgrade "What's New" Summarizer
           </h1>
           <p class="text-slate-600 mt-1 text-sm sm:text-base">
-            Select your current and target MAS version (e.g. 8.11.0, 9.0.4) to extract all new features, security updates, and DT fixes introduced in between.
+            Select your current and target MAS version (e.g. 8.11.0, 9.0.4) to extract all new features, security updates, DT fixes, and major IBM Docs functionality changes.
           </p>
         </div>
         <div class="flex items-center gap-3">
@@ -63,7 +63,7 @@
         <!-- Version Search Filter -->
         <div class="w-full sm:w-72 relative">
           <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-xs text-slate-400"></i>
-          <input id="versionSearchFilter" type="text" placeholder="Search version (e.g. 8.11, 9.0.4, 2609)..." 
+          <input id="versionSearchFilter" type="text" placeholder="Search version (e.g. 8.11, 9.0, 9.1)..." 
                  class="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono" />
         </div>
       </div>
@@ -115,6 +115,9 @@
         </button>
       </div>
 
+      <!-- Major Version Upgrade Documentation Callout -->
+      <div id="majorVersionSection" class="hidden"></div>
+
       <!-- Included Releases Badge Bar -->
       <div id="releasesInScope" class="bg-white p-4 rounded-xl border border-slate-200 hidden">
         <div class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2 flex items-center gap-2">
@@ -133,9 +136,57 @@
     let currentArch = 'amd64';
     let allDiscoveredTags = [];
 
-    // Mapping from known catalog date tags to MAS marketing releases
+    // Official IBM Documentation Major Release Topic Mapping & High-level Functionality Notes
+    const MAJOR_RELEASE_DOCS = {
+      "9.2": {
+        name: "Maximo Application Suite 9.2",
+        docUrl: "https://www.ibm.com/docs/en/masv-and-l/cd?topic=new-whats-in-maximo-application-suite-92",
+        highlights: [
+          "Enhanced Generative AI & Assistant integration across Manage and Health workflows",
+          "Next-generation Visual Inspection model deployments and edge performance enhancements",
+          "Updated IBM Cloud Pak foundational services and OpenShift operator ecosystem baselines"
+        ]
+      },
+      "9.1": {
+        name: "Maximo Application Suite 9.1",
+        docUrl: "https://www.ibm.com/docs/en/masv-and-l/cd?topic=new-in-91",
+        highlights: [
+          "Enhanced Asset Investment Planning & risk scoring capabilities in Health and Predict",
+          "Simplified application lifecycle management and automated backup/restore enhancements",
+          "Updated operator channels and compatibility with newer Red Hat OpenShift release channels"
+        ]
+      },
+      "9.0": {
+        name: "Maximo Application Suite 9.0 (Major Release)",
+        docUrl: "https://www.ibm.com/docs/en/masv-and-l/cd?topic=new-in-90",
+        highlights: [
+          "Major Platform Evolution: IBM Suite License Service (SLS) modernization & unified admin suite UI",
+          "Manage 9.0: Native support for OpenShift 4.14+, simplified customization archive deployment",
+          "Consolidated IoT & Sensor integration architecture and deprecation of legacy v8 pipelines",
+          "Updated foundational dependencies (Cert-Manager 1.12+, Cloud Pak foundational services 4.x)"
+        ]
+      },
+      "8.11": {
+        name: "Maximo Application Suite 8.11",
+        docUrl: "https://www.ibm.com/docs/en/masv-and-l/cd?topic=releases-in-811",
+        highlights: [
+          "Enhanced Manage (EAM) Work Order Tracking and user experience modernizations",
+          "Reliability Strategies enhancements in MAS Health and Predict",
+          "Support for IBM Cloud Pak foundational services 3.23 and Red Hat OpenShift 4.12/4.14"
+        ]
+      },
+      "8.10": {
+        name: "Maximo Application Suite 8.10",
+        docUrl: "https://www.ibm.com/docs/en/masv-and-l/cd?topic=releases-in-810",
+        highlights: [
+          "Introduction of Asset Data Services & continuous inspection pipelines",
+          "Streamlined operator subscription models and air-gapped installation enhancements"
+        ]
+      }
+    };
+
+    // Mapping from catalog date tags to MAS marketing releases
     const CATALOG_VERSION_LABELS = {
-      // MAS 9 Releases
       "v9-260918": "MAS 9.0.5",
       "v9-260827": "MAS 9.0.4.1",
       "v9-260730": "MAS 9.0.4",
@@ -145,7 +196,6 @@
       "v9-240924": "MAS 9.0.1",
       "v9-240528": "MAS 9.0.0",
 
-      // MAS 8 Releases
       "v8-231128": "MAS 8.11.0",
       "v8-230829": "MAS 8.10.2",
       "v8-230530": "MAS 8.10.0",
@@ -153,16 +203,27 @@
       "v8-221129": "MAS 8.8.0"
     };
 
-    // Helper to format tag into a searchable display label: e.g. "MAS 9.0.4 (v9-260625-amd64)"
     function getDisplayLabel(tag) {
       const baseTag = tag.replace(/-(amd64|ppc64le|s390x)$/, '');
       const friendlyName = CATALOG_VERSION_LABELS[baseTag];
       if (friendlyName) {
         return `${friendlyName} — [${tag}]`;
       }
-      // Infer friendly label for any newly discovered versions
       const major = tag.startsWith('v9') ? '9' : tag.startsWith('v8') ? '8' : '';
       return major ? `MAS ${major}.x — [${tag}]` : tag;
+    }
+
+    // Extracts normalized major.minor stream (e.g. "8.11", "9.0", "9.1", "9.2")
+    function extractMajorMinor(tag) {
+      const baseTag = tag.replace(/-(amd64|ppc64le|s390x)$/, '');
+      const friendly = CATALOG_VERSION_LABELS[baseTag];
+      if (friendly) {
+        const match = friendly.match(/MAS\s+(\d+\.\d+)/i);
+        if (match) return match[1];
+      }
+      if (tag.startsWith('v9')) return '9.0';
+      if (tag.startsWith('v8')) return '8.11';
+      return null;
     }
 
     const SEED_TAGS_MAP = {
@@ -214,12 +275,10 @@
       const fromSelect = document.getElementById('fromVersionSelect');
       const toSelect = document.getElementById('toVersionSelect');
 
-      // Filter tags for architecture
       let filteredTags = allDiscoveredTags
         .filter(t => t.endsWith(`-${currentArch}`))
         .sort((a, b) => b.localeCompare(a, undefined, { numeric: true, sensitivity: 'base' }));
 
-      // Apply search query filter if user typed in search box
       if (searchFilter.trim()) {
         const q = searchFilter.toLowerCase().trim();
         filteredTags = filteredTags.filter(t => {
@@ -244,7 +303,7 @@
       const fromParam = params.get('from');
       const toParam = params.get('to');
 
-      fromSelect.value = (fromParam && filteredTags.includes(fromParam)) ? fromParam : (filteredTags[2] || filteredTags[1] || filteredTags[0]);
+      fromSelect.value = (fromParam && filteredTags.includes(fromParam)) ? fromParam : (filteredTags[4] || filteredTags[2] || filteredTags[0]);
       toSelect.value = (toParam && filteredTags.includes(toParam)) ? toParam : filteredTags[0];
 
       extractWhatsNew();
@@ -267,6 +326,29 @@
       }
 
       return filteredAscending.slice(currentIdx + 1, targetIdx + 1);
+    }
+
+    /**
+     * Checks if the upgrade path traverses across major version streams (e.g. 8.11 -> 9.0)
+     */
+    function detectMajorVersionTransitions(fromTag, toTag) {
+      const fromVer = extractMajorMinor(fromTag);
+      const toVer = extractMajorMinor(toTag);
+
+      if (!fromVer || !toVer || fromVer === toVer) {
+        return [];
+      }
+
+      const knownOrder = ["8.10", "8.11", "9.0", "9.1", "9.2"];
+      const fromIndex = knownOrder.indexOf(fromVer);
+      const toIndex = knownOrder.indexOf(toVer);
+
+      if (fromIndex !== -1 && toIndex !== -1 && toIndex > fromIndex) {
+        // Collect all major intermediate versions crossed
+        return knownOrder.slice(fromIndex + 1, toIndex + 1);
+      }
+
+      return [toVer];
     }
 
     async function fetchAndCategorizeCatalog(tag) {
@@ -372,6 +454,7 @@
       const status = document.getElementById('statusIndicator');
       const container = document.getElementById('categoriesContainer');
       const summaryBar = document.getElementById('summaryBar');
+      const majorVersionSection = document.getElementById('majorVersionSection');
       const releasesInScope = document.getElementById('releasesInScope');
       const releasesBadgeContainer = document.getElementById('releasesBadgeContainer');
 
@@ -387,6 +470,7 @@
 
       if (targetCatalogs.length === 0) {
         summaryBar.classList.add('hidden');
+        majorVersionSection.classList.add('hidden');
         releasesInScope.classList.add('hidden');
         container.innerHTML = `
           <div class="p-8 text-center bg-white rounded-2xl border border-slate-200">
@@ -420,6 +504,59 @@
 
         document.getElementById('summaryTitle').innerText = `What's New: ${getDisplayLabel(fromVal)} ➔ ${getDisplayLabel(toVal)}`;
         document.getElementById('summarySubtitle').innerText = `Summarizing changes across ${results.length} future catalog release(s) (current version excluded)`;
+
+        // Check for Major Version Transitions (e.g. 8.11 -> 9.0)
+        const majorTransitions = detectMajorVersionTransitions(fromVal, toVal);
+        if (majorTransitions.length > 0) {
+          majorVersionSection.classList.remove('hidden');
+          majorVersionSection.innerHTML = `
+            <div class="bg-gradient-to-r from-indigo-900 to-blue-900 text-white rounded-2xl p-6 shadow-md border border-indigo-700 space-y-4">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                  <span class="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center text-lg text-indigo-300">
+                    <i class="fa-solid fa-book-bookmark"></i>
+                  </span>
+                  <div>
+                    <h3 class="text-base font-bold text-white">Major Version Transition Detected</h3>
+                    <p class="text-xs text-indigo-200">Official IBM Documentation Functionality Changes across ${majorTransitions.map(v => `MAS ${v}`).join(', ')}</p>
+                  </div>
+                </div>
+                <a href="https://www.ibm.com/docs/en/masv-and-l/cd?topic=overview-whats-new" target="_blank" class="text-xs bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded-lg border border-white/20 flex items-center gap-1.5 transition">
+                  <span>Main IBM Docs Hub</span>
+                  <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
+                </a>
+              </div>
+
+              <div class="grid grid-cols-1 md:grid-cols-${Math.min(majorTransitions.length, 2)} gap-4 pt-2">
+                ${majorTransitions.map(v => {
+                  const docInfo = MAJOR_RELEASE_DOCS[v] || {
+                    name: `Maximo Application Suite ${v}`,
+                    docUrl: `https://www.ibm.com/docs/en/masv-and-l/cd?topic=overview-whats-new`,
+                    highlights: ["Detailed architectural and platform modernizations available in IBM documentation."]
+                  };
+                  return `
+                    <div class="bg-white/10 rounded-xl p-4 border border-white/10 backdrop-blur-sm space-y-3">
+                      <div class="flex items-center justify-between">
+                        <span class="text-sm font-bold text-white flex items-center gap-2">
+                          <i class="fa-solid fa-star text-amber-400 text-xs"></i> ${docInfo.name}
+                        </span>
+                        <a href="${docInfo.docUrl}" target="_blank" class="text-xs text-blue-300 hover:text-white underline font-medium flex items-center gap-1">
+                          <span>Read Full Docs</span>
+                          <i class="fa-solid fa-arrow-up-right-from-square text-[9px]"></i>
+                        </a>
+                      </div>
+                      <ul class="text-xs text-indigo-100 space-y-1.5 list-disc pl-4">
+                        ${docInfo.highlights.map(h => `<li>${h}</li>`).join('')}
+                      </ul>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+          `;
+        } else {
+          majorVersionSection.classList.add('hidden');
+        }
 
         releasesBadgeContainer.innerHTML = targetCatalogs.map(t => `
           <a href="https://ibm-mas.github.io/cli/catalogs/${t}/" target="_blank" class="px-3 py-1 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 flex items-center gap-1.5 transition">
@@ -573,6 +710,20 @@
       const toVal = document.getElementById('toVersionSelect').value;
       let md = `# IBM MAS Upgrade What's New Report (${currentArch})\n`;
       md += `**Current Version:** \`${getDisplayLabel(fromVal)}\` ➔ **Target Upgrade:** \`${getDisplayLabel(toVal)}\`\n\n`;
+
+      const majorTransitions = detectMajorVersionTransitions(fromVal, toVal);
+      if (majorTransitions.length > 0) {
+        md += `## 🌟 Major Version IBM Documentation Overview\n`;
+        majorTransitions.forEach(v => {
+          const doc = MAJOR_RELEASE_DOCS[v];
+          if (doc) {
+            md += `### [${doc.name}](${doc.docUrl})\n`;
+            doc.highlights.forEach(h => md += `- ${h}\n`);
+            md += `\n`;
+          }
+        });
+        md += `---\n\n`;
+      }
 
       const targetCatalogs = getFutureCatalogsInRange(fromVal, toVal);
       md += `**Releases Included in this Upgrade (${targetCatalogs.length}):** ${targetCatalogs.map(t => `\`${getDisplayLabel(t)}\``).join(', ')}\n\n`;
