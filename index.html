@@ -31,7 +31,7 @@
             MAS Upgrade & "What's New" Navigator
           </h1>
           <p class="text-slate-600 mt-1 text-sm sm:text-base">
-            Select your starting and target MAS releases to discover what's new, security fixes, and the matching catalog source.
+            Select your starting and target MAS releases (e.g. 9.0.0 ➔ 9.0.4) to discover what's new, security fixes, and the matching catalog source.
           </p>
         </div>
         <div class="flex items-center gap-3">
@@ -58,7 +58,7 @@
         </div>
       </div>
 
-      <!-- Main Clean Version Selectors -->
+      <!-- Main Clean Minor-Version Selectors -->
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
         <!-- Starting Version -->
         <div>
@@ -131,12 +131,11 @@
     let currentArch = 'amd64';
     let dynamicVersions = [];
 
-    // Core known mapping base
+    // Core known mapping down to minor and patch releases
     const SEED_VERSIONS = [
       { version: "9.0.5", tagBase: "v9-260918", major: "9.0" },
       { version: "9.0.4.1", tagBase: "v9-260827", major: "9.0" },
       { version: "9.0.4", tagBase: "v9-260730", major: "9.0" },
-      { version: "9.0.4", tagBase: "v9-260625", major: "9.0" },
       { version: "9.0.3", tagBase: "v9-250527", major: "9.0" },
       { version: "9.0.2", tagBase: "v9-241126", major: "9.0" },
       { version: "9.0.1", tagBase: "v9-240924", major: "9.0" },
@@ -204,13 +203,12 @@
                 const tagBase = tag.replace(/-(amd64|ppc64le|s390x)$/, '');
                 
                 if ((tagBase.startsWith('v8-') || tagBase.startsWith('v9-') || tagBase.startsWith('v10-')) && !knownBases.has(tagBase)) {
-                  // Infer version details for newly discovered catalog tag
                   const majorMatch = tagBase.match(/v(\d+)-/);
                   const majorNum = majorMatch ? majorMatch[1] : '9';
                   const inferredMajor = majorNum === '8' ? '8.11' : `${majorNum}.0`;
                   
                   knownBases.set(tagBase, {
-                    version: `${inferredMajor}.x (${tagBase})`,
+                    version: `${inferredMajor}.x`,
                     tagBase: tagBase,
                     major: inferredMajor
                   });
@@ -223,12 +221,12 @@
         console.warn('Live catalog tree sync skipped:', err);
       }
 
-      // Sort descending by tagBase (newest releases first)
+      // Sort descending (newest minor release first)
       dynamicVersions = Array.from(knownBases.values()).sort((a, b) => 
         b.tagBase.localeCompare(a.tagBase, undefined, { numeric: true, sensitivity: 'base' })
       );
 
-      document.getElementById('versionCountBadge').innerText = `${dynamicVersions.length} releases synced`;
+      document.getElementById('versionCountBadge').innerText = `${dynamicVersions.length} versions synced`;
       populateVersionDropdowns();
     }
 
@@ -236,16 +234,16 @@
       const fromSelect = document.getElementById('fromVersionSelect');
       const toSelect = document.getElementById('toVersionSelect');
 
-      // Deduplicate by version name
+      // Dropdowns show clean minor versions: "MAS 9.0.0", "MAS 9.0.1", etc.
       const options = dynamicVersions.map(v => 
-        `<option value="${v.tagBase}">MAS ${v.version} — [${v.tagBase}]</option>`
+        `<option value="${v.tagBase}">MAS ${v.version}</option>`
       ).join('');
 
       fromSelect.innerHTML = options;
       toSelect.innerHTML = options;
 
-      // Select default from & to
-      const defaultFrom = dynamicVersions.find(v => v.tagBase === "v8-231128") || dynamicVersions[dynamicVersions.length - 1];
+      // Default: Current = 9.0.0 (or 8.11.0), Target = Latest (9.0.5)
+      const defaultFrom = dynamicVersions.find(v => v.version === "9.0.0") || dynamicVersions[dynamicVersions.length - 1];
       const defaultTo = dynamicVersions[0];
 
       fromSelect.value = defaultFrom.tagBase;
@@ -386,7 +384,7 @@
 
       if (targetTag) {
         catalogSourceCard.classList.remove('hidden');
-        document.getElementById('targetCatalogTitle').innerText = `${targetTag} (MAS ${toObj ? toObj.version : ''})`;
+        document.getElementById('targetCatalogTitle').innerText = `${targetTag} (for MAS ${toObj ? toObj.version : ''})`;
         document.getElementById('targetCatalogLink').href = `https://ibm-mas.github.io/cli/catalogs/${targetTag}/`;
         document.getElementById('targetImageTag').innerText = `icr.io/cpopen/ibm-mas-operator-catalog:${targetTag}`;
       }
@@ -400,7 +398,7 @@
             <i class="fa-solid fa-circle-info text-3xl text-amber-500 mb-3"></i>
             <h3 class="text-base font-bold text-slate-800">No Upgrade Steps Detected</h3>
             <p class="text-sm text-slate-500 mt-1 max-w-md mx-auto">
-              Target version is already installed or older than your current starting version.
+              Target version (MAS ${toObj ? toObj.version : ''}) is already installed or older than your current starting version (MAS ${fromObj ? fromObj.version : ''}).
             </p>
           </div>
         `;
@@ -409,7 +407,7 @@
         return;
       }
 
-      status.innerText = `Loading highlights for upgrade path...`;
+      status.innerText = `Loading highlights for MAS ${fromObj ? fromObj.version : ''} ➔ MAS ${toObj ? toObj.version : ''}...`;
       status.className = "text-xs text-blue-600 italic";
 
       container.innerHTML = `
@@ -541,7 +539,7 @@
         }
 
         container.innerHTML = html;
-        status.innerText = `Upgrade path ready`;
+        status.innerText = `Upgrade path ready (MAS ${fromObj ? fromObj.version : ''} ➔ MAS ${toObj ? toObj.version : ''})`;
         status.className = "text-xs text-emerald-600 font-medium";
       } catch (err) {
         container.innerHTML = `<div class="p-6 text-rose-600 bg-rose-50 border border-rose-200 rounded-xl text-sm">Failed to extract: ${err.message}</div>`;
