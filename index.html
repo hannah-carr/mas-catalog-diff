@@ -31,12 +31,12 @@
             MAS Upgrade & "What's New" Navigator
           </h1>
           <p class="text-slate-600 mt-1 text-sm sm:text-base">
-            Select your starting and target MAS major/minor releases to discover what's new, security fixes, and the matching catalog source.
+            Select your starting and target MAS releases to discover what's new, security fixes, and the matching catalog source.
           </p>
         </div>
         <div class="flex items-center gap-3">
-          <button id="syncLiveBtn" title="Sync live catalogs from GitHub" class="text-xs bg-white border border-slate-200 text-slate-600 px-3 py-1.5 rounded-lg hover:bg-slate-100 flex items-center gap-1.5 transition shadow-sm">
-            <i class="fa-solid fa-arrows-rotate"></i> Sync Catalogs
+          <button id="syncLiveBtn" title="Sync newly published releases from GitHub" class="text-xs bg-white border border-slate-200 text-slate-600 px-3 py-1.5 rounded-lg hover:bg-slate-100 flex items-center gap-1.5 transition shadow-sm">
+            <i class="fa-solid fa-arrows-rotate"></i> Sync Live Catalogs
           </button>
           <a href="https://github.com/ibm-mas/cli" target="_blank" class="text-slate-400 hover:text-slate-700 text-2xl transition">
             <i class="fa-brands fa-github"></i>
@@ -58,49 +58,28 @@
         </div>
       </div>
 
-      <!-- Two-Tier Major & Minor Selectors -->
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
-        
-        <!-- Starting Version Selection Group -->
-        <div class="space-y-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
-          <div class="flex items-center justify-between">
-            <span class="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-              <span class="w-2 h-2 rounded-full bg-slate-400"></span> 1. Starting Release (From)
-            </span>
-          </div>
-
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <div>
-              <label for="fromMajorSelect" class="block text-[11px] font-semibold text-slate-500 mb-1">Major Version</label>
-              <select id="fromMajorSelect" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-semibold cursor-pointer"></select>
-            </div>
-            <div>
-              <label for="fromMinorSelect" class="block text-[11px] font-semibold text-slate-500 mb-1">Minor / Patch</label>
-              <select id="fromMinorSelect" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-semibold cursor-pointer"></select>
-            </div>
-          </div>
+      <!-- Clean Two-Dropdown Selection with optgroups -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+        <!-- Starting Version -->
+        <div>
+          <label for="fromVersionSelect" class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2 flex justify-between">
+            <span>1. Current Starting Release (From)</span>
+            <span id="versionCountBadge" class="text-[10px] text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full font-mono">syncing...</span>
+          </label>
+          <select id="fromVersionSelect" class="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-semibold cursor-pointer">
+            <option value="">Loading releases...</option>
+          </select>
         </div>
 
-        <!-- Target Version Selection Group -->
-        <div class="space-y-3 bg-blue-50/50 p-4 rounded-xl border border-blue-200">
-          <div class="flex items-center justify-between">
-            <span class="text-xs font-bold uppercase tracking-wider text-blue-900 flex items-center gap-1.5">
-              <span class="w-2 h-2 rounded-full bg-blue-600"></span> 2. Target Release (To)
-            </span>
-          </div>
-
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <div>
-              <label for="toMajorSelect" class="block text-[11px] font-semibold text-blue-800 mb-1">Major Version</label>
-              <select id="toMajorSelect" class="w-full px-3 py-2 bg-white border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-semibold cursor-pointer"></select>
-            </div>
-            <div>
-              <label for="toMinorSelect" class="block text-[11px] font-semibold text-blue-800 mb-1">Minor / Patch</label>
-              <select id="toMinorSelect" class="w-full px-3 py-2 bg-white border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-semibold cursor-pointer"></select>
-            </div>
-          </div>
+        <!-- Target Version -->
+        <div>
+          <label for="toVersionSelect" class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
+            2. Target Release to Upgrade To
+          </label>
+          <select id="toVersionSelect" class="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-semibold cursor-pointer">
+            <option value="">Loading releases...</option>
+          </select>
         </div>
-
       </div>
 
       <div class="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-slate-100">
@@ -150,100 +129,77 @@
   <script>
     const catalogCache = new Map();
     let currentArch = 'amd64';
+    let liveCatalogs = [];
 
-    // Structured Catalog Hierarchy by Major Version Stream
-    const CATALOG_STREAMS = {
+    // Official IBM Documentation Major Release Topic Mapping
+    const MAJOR_DOCS = {
       "9.2": {
-        name: "MAS 9.2",
+        name: "Maximo Application Suite 9.2",
         docUrl: "https://www.ibm.com/docs/en/masv-and-l/cd?topic=new-whats-in-maximo-application-suite-92",
         highlights: [
-          "Enhanced Generative AI & Assistant integrations across Manage and Health workflows",
-          "Next-generation Visual Inspection model deployments and edge performance enhancements",
-          "Updated IBM Cloud Pak foundational services and OpenShift operator baselines"
-        ],
-        releases: [
-          { version: "9.2.0", tagBase: "v9-270101", label: "MAS 9.2.0 (GA)" }
+          "Generative AI & Assistant integrations across Manage and Health workflows",
+          "Next-generation Visual Inspection model deployments and edge performance",
+          "Updated Cloud Pak foundational services and OpenShift operator baselines"
         ]
       },
       "9.1": {
-        name: "MAS 9.1",
+        name: "Maximo Application Suite 9.1",
         docUrl: "https://www.ibm.com/docs/en/masv-and-l/cd?topic=new-in-91",
         highlights: [
           "Asset Investment Planning & risk scoring capabilities in Health and Predict",
           "Automated backup/restore and application lifecycle enhancements",
           "Support for newer Red Hat OpenShift release channels"
-        ],
-        releases: [
-          { version: "9.1.1", tagBase: "v9-261120", label: "MAS 9.1.1" },
-          { version: "9.1.0", tagBase: "v9-261015", label: "MAS 9.1.0 (GA)" }
         ]
       },
       "9.0": {
-        name: "MAS 9.0",
+        name: "Maximo Application Suite 9.0 (Major Release)",
         docUrl: "https://www.ibm.com/docs/en/masv-and-l/cd?topic=new-in-90",
         highlights: [
           "Suite License Service (SLS) modernization & unified administrative UI",
           "Manage 9.0: Support for OpenShift 4.14+, simplified customization archive deployment",
           "Consolidated IoT & Sensor integration architecture (deprecation of legacy v8 pipelines)",
           "Updated dependencies (Cert-Manager 1.12+, Cloud Pak foundational services 4.x)"
-        ],
-        releases: [
-          { version: "9.0.5", tagBase: "v9-260918", label: "MAS 9.0.5" },
-          { version: "9.0.4.1", tagBase: "v9-260827", label: "MAS 9.0.4.1" },
-          { version: "9.0.4", tagBase: "v9-260730", label: "MAS 9.0.4" },
-          { version: "9.0.3", tagBase: "v9-250527", label: "MAS 9.0.3" },
-          { version: "9.0.2", tagBase: "v9-241126", label: "MAS 9.0.2" },
-          { version: "9.0.1", tagBase: "v9-240924", label: "MAS 9.0.1" },
-          { version: "9.0.0", tagBase: "v9-240528", label: "MAS 9.0.0 (Initial GA)" }
         ]
       },
       "8.11": {
-        name: "MAS 8.11",
+        name: "Maximo Application Suite 8.11",
         docUrl: "https://www.ibm.com/docs/en/masv-and-l/cd?topic=releases-in-811",
         highlights: [
           "Enhanced Manage (EAM) Work Order Tracking and user experience modernizations",
           "Reliability Strategies enhancements in Health and Predict",
           "Support for IBM Cloud Pak foundational services 3.23 and Red Hat OpenShift 4.12/4.14"
-        ],
-        releases: [
-          { version: "8.11.2", tagBase: "v8-240227", label: "MAS 8.11.2" },
-          { version: "8.11.1", tagBase: "v8-240130", label: "MAS 8.11.1" },
-          { version: "8.11.0", tagBase: "v8-231128", label: "MAS 8.11.0 (GA)" }
-        ]
-      },
-      "8.10": {
-        name: "MAS 8.10",
-        docUrl: "https://www.ibm.com/docs/en/masv-and-l/cd?topic=releases-in-810",
-        highlights: [
-          "Introduction of Asset Data Services & continuous inspection pipelines",
-          "Streamlined operator subscription models and air-gapped installation enhancements"
-        ],
-        releases: [
-          { version: "8.10.2", tagBase: "v8-230829", label: "MAS 8.10.2" },
-          { version: "8.10.0", tagBase: "v8-230530", label: "MAS 8.10.0 (GA)" }
         ]
       }
     };
 
-    // Flattened ordered list for chronological traversal
-    function getAllReleasesOrdered() {
-      const streams = ["8.10", "8.11", "9.0", "9.1", "9.2"];
-      const all = [];
-      streams.forEach(streamKey => {
-        const stream = CATALOG_STREAMS[streamKey];
-        if (stream) {
-          // Add in ascending order (older first)
-          const sorted = [...stream.releases].reverse();
-          sorted.forEach(r => all.push({ ...r, major: streamKey }));
-        }
-      });
-      return all;
+    /**
+     * Converts raw date tag (e.g. v9-240528) to clean readable format: "MAS 9.0 (May 2024 - v9-240528)"
+     */
+    function formatCatalogLabel(tagBase) {
+      const match = tagBase.match(/^v(\d+)-(\d{2})(\d{2})(\d{2})$/);
+      if (!match) return tagBase;
+
+      const major = match[1];
+      const year = `20${match[2]}`;
+      const monthNum = parseInt(match[3], 10);
+      const day = match[4];
+
+      const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      const monthStr = months[monthNum - 1] || match[3];
+
+      const masStream = major === '9' ? 'MAS 9.x' : major === '8' ? 'MAS 8.x' : `MAS ${major}.x`;
+      return `${masStream} • ${monthStr} ${year} (${tagBase})`;
     }
 
     /**
-     * Dynamically synchronizes newly published catalogs from GitHub Pages git tree
+     * Discover live catalog releases dynamically from GitHub repository tree
      */
-    async function syncDynamicCatalogs() {
+    async function syncLiveCatalogs() {
+      const tagBases = new Set([
+        "v9-260918", "v9-260827", "v9-260730", "v9-260625", "v9-250527", "v9-241126", "v9-240924", "v9-240528",
+        "v8-231128", "v8-230829", "v8-230530", "v8-230228", "v8-221129"
+      ]);
+
       try {
         const res = await fetch('https://api.github.com/repos/ibm-mas/cli/git/trees/gh-pages?recursive=1');
         if (res.ok) {
@@ -254,96 +210,82 @@
               if (match && match[1]) {
                 const tag = match[1].replace('.json', '');
                 const tagBase = tag.replace(/-(amd64|ppc64le|s390x)$/, '');
-                
-                // Check if already registered
-                const exists = Object.values(CATALOG_STREAMS).some(s => s.releases.some(r => r.tagBase === tagBase));
-                if (!exists && (tagBase.startsWith('v9-') || tagBase.startsWith('v8-'))) {
-                  const majorKey = tagBase.startsWith('v9-') ? '9.0' : '8.11';
-                  if (CATALOG_STREAMS[majorKey]) {
-                    CATALOG_STREAMS[majorKey].releases.unshift({
-                      version: tagBase,
-                      tagBase: tagBase,
-                      label: `Build [${tagBase}]`
-                    });
-                  }
+                if (tagBase.startsWith('v8-') || tagBase.startsWith('v9-') || tagBase.startsWith('v10-')) {
+                  tagBases.add(tagBase);
                 }
               }
             });
           }
         }
       } catch (err) {
-        console.warn('Sync fallback used:', err);
+        console.warn('Live sync fallback used');
       }
 
-      initDropdowns();
+      // Sort descending (newest release first)
+      liveCatalogs = Array.from(tagBases).sort((a, b) => 
+        b.localeCompare(a, undefined, { numeric: true, sensitivity: 'base' })
+      );
+
+      document.getElementById('versionCountBadge').innerText = `${liveCatalogs.length} catalogs synced`;
+      populateDropdowns();
     }
 
-    function initDropdowns() {
-      const fromMajor = document.getElementById('fromMajorSelect');
-      const toMajor = document.getElementById('toMajorSelect');
+    function populateDropdowns() {
+      const fromSelect = document.getElementById('fromVersionSelect');
+      const toSelect = document.getElementById('toVersionSelect');
 
-      const majorStreams = Object.keys(CATALOG_STREAMS); // ["9.2", "9.1", "9.0", "8.11", "8.10"]
+      // Group by Major Stream
+      const v9List = liveCatalogs.filter(t => t.startsWith('v9-'));
+      const v8List = liveCatalogs.filter(t => t.startsWith('v8-'));
 
-      const majorOptions = majorStreams.map(k => `<option value="${k}">MAS ${k}</option>`).join('');
-      fromMajor.innerHTML = majorOptions;
-      toMajor.innerHTML = majorOptions;
+      let html = '';
+      if (v9List.length) {
+        html += `<optgroup label="Maximo Application Suite 9 Releases">`;
+        v9List.forEach(t => html += `<option value="${t}">${formatCatalogLabel(t)}</option>`);
+        html += `</optgroup>`;
+      }
+      if (v8List.length) {
+        html += `<optgroup label="Maximo Application Suite 8 Releases">`;
+        v8List.forEach(t => html += `<option value="${t}">${formatCatalogLabel(t)}</option>`);
+        html += `</optgroup>`;
+      }
 
-      // Default: From = 9.0, To = 9.0 (or 9.1/9.2)
-      fromMajor.value = "9.0";
-      toMajor.value = "9.0";
+      fromSelect.innerHTML = html;
+      toSelect.innerHTML = html;
 
-      updateMinorOptions('from');
-      updateMinorOptions('to');
-
-      // Set initial defaults
-      const fromMinor = document.getElementById('fromMinorSelect');
-      const toMinor = document.getElementById('toMinorSelect');
-      fromMinor.value = "v9-240528"; // MAS 9.0.0
-      toMinor.value = "v9-260918";   // MAS 9.0.5
+      // Default: From = Initial v9 GA (v9-240528), To = Latest v9 build (index 0)
+      fromSelect.value = "v9-240528";
+      toSelect.value = liveCatalogs[0];
 
       extractWhatsNew();
     }
 
-    function updateMinorOptions(type) {
-      const majorVal = document.getElementById(`${type}MajorSelect`).value;
-      const minorSelect = document.getElementById(`${type}MinorSelect`);
-      const stream = CATALOG_STREAMS[majorVal];
-
-      if (!stream) return;
-
-      minorSelect.innerHTML = stream.releases.map(r => 
-        `<option value="${r.tagBase}">${r.label}</option>`
-      ).join('');
-    }
-
     function getFutureCatalogsInRange(fromTagBase, toTagBase) {
-      const all = getAllReleasesOrdered();
-      const fromIdx = all.findIndex(r => r.tagBase === fromTagBase);
-      const toIdx = all.findIndex(r => r.tagBase === toTagBase);
+      // Ascending chronological order (oldest to newest)
+      const ascending = [...liveCatalogs].reverse();
+      const fromIdx = ascending.indexOf(fromTagBase);
+      const toIdx = ascending.indexOf(toTagBase);
 
       if (fromIdx === -1 || toIdx === -1 || toIdx <= fromIdx) {
         return [];
       }
 
-      // Return releases strictly after fromIdx up to toIdx
-      return all.slice(fromIdx + 1, toIdx + 1).map(r => ({
-        version: r.label,
-        tag: `${r.tagBase}-${currentArch}`,
-        tagBase: r.tagBase,
-        major: r.major
+      // Strictly after starting release up to and including target release
+      return ascending.slice(fromIdx + 1, toIdx + 1).map(tagBase => ({
+        tagBase: tagBase,
+        tag: `${tagBase}-${currentArch}`,
+        label: formatCatalogLabel(tagBase)
       }));
     }
 
-    function detectMajorTransitions(fromMajor, toMajor) {
-      if (fromMajor === toMajor) return [];
-      const streams = ["8.10", "8.11", "9.0", "9.1", "9.2"];
-      const iFrom = streams.indexOf(fromMajor);
-      const iTo = streams.indexOf(toMajor);
+    function detectMajorTransitions(fromTagBase, toTagBase) {
+      const majorFrom = fromTagBase.startsWith('v8') ? '8.11' : '9.0';
+      const majorTo = toTagBase.startsWith('v8') ? '8.11' : '9.0';
 
-      if (iFrom !== -1 && iTo !== -1 && iTo > iFrom) {
-        return streams.slice(iFrom + 1, iTo + 1);
+      if (majorFrom !== majorTo) {
+        return ['9.0'];
       }
-      return [toMajor];
+      return [];
     }
 
     async function fetchAndCategorizeCatalog(item) {
@@ -354,7 +296,7 @@
 
       const catalogUrl = `https://ibm-mas.github.io/cli/catalogs/${tag}/`;
       const result = {
-        version: item.version,
+        label: item.label,
         tag,
         catalogUrl,
         features: [],
@@ -430,11 +372,8 @@
     }
 
     async function extractWhatsNew() {
-      const fromMajor = document.getElementById('fromMajorSelect').value;
-      const fromTagBase = document.getElementById('fromMinorSelect').value;
-      const toMajor = document.getElementById('toMajorSelect').value;
-      const toTagBase = document.getElementById('toMinorSelect').value;
-
+      const fromTagBase = document.getElementById('fromVersionSelect').value;
+      const toTagBase = document.getElementById('toVersionSelect').value;
       const status = document.getElementById('statusIndicator');
       const container = document.getElementById('categoriesContainer');
       const catalogSourceCard = document.getElementById('catalogSourceCard');
@@ -443,12 +382,10 @@
       if (!fromTagBase || !toTagBase) return;
 
       const targetTag = `${toTagBase}-${currentArch}`;
-      const toSelect = document.getElementById('toMinorSelect');
-      const targetLabel = toSelect.options[toSelect.selectedIndex]?.text || targetTag;
 
       if (targetTag) {
         catalogSourceCard.classList.remove('hidden');
-        document.getElementById('targetCatalogTitle').innerText = `${targetTag} (${targetLabel})`;
+        document.getElementById('targetCatalogTitle').innerText = targetTag;
         document.getElementById('targetCatalogLink').href = `https://ibm-mas.github.io/cli/catalogs/${targetTag}/`;
         document.getElementById('targetImageTag').innerText = `icr.io/cpopen/ibm-mas-operator-catalog:${targetTag}`;
       }
@@ -462,16 +399,16 @@
             <i class="fa-solid fa-circle-info text-3xl text-amber-500 mb-3"></i>
             <h3 class="text-base font-bold text-slate-800">No Upgrade Steps Detected</h3>
             <p class="text-sm text-slate-500 mt-1 max-w-md mx-auto">
-              Your selected <b>Target Release</b> is already installed or older than your <b>Starting Release</b>.
+              Your selected target release is already installed or older than your current starting release.
             </p>
           </div>
         `;
-        status.innerText = `Current version is up to date with or newer than target.`;
+        status.innerText = `Current release is up to date with or newer than target.`;
         status.className = "text-xs text-amber-600 font-medium";
         return;
       }
 
-      status.innerText = `Loading highlights across upgrade path...`;
+      status.innerText = `Loading highlights for upgrade path...`;
       status.className = "text-xs text-blue-600 italic";
 
       container.innerHTML = `
@@ -484,8 +421,8 @@
       try {
         const results = await Promise.all(futureReleases.map(fetchAndCategorizeCatalog));
 
-        // Major Version Transition Callout (e.g. 8.11 -> 9.0 or 9.0 -> 9.1/9.2)
-        const majorTransitions = detectMajorTransitions(fromMajor, toMajor);
+        // Major Version Transition Callout
+        const majorTransitions = detectMajorTransitions(fromTagBase, toTagBase);
         if (majorTransitions.length > 0) {
           majorVersionSection.classList.remove('hidden');
           majorVersionSection.innerHTML = `
@@ -508,7 +445,7 @@
 
               <div class="grid grid-cols-1 md:grid-cols-${Math.min(majorTransitions.length, 2)} gap-4 pt-2">
                 ${majorTransitions.map(v => {
-                  const docInfo = CATALOG_STREAMS[v] || {
+                  const docInfo = MAJOR_DOCS[v] || {
                     name: `Maximo Application Suite ${v}`,
                     docUrl: `https://www.ibm.com/docs/en/masv-and-l/cd?topic=overview-whats-new`,
                     highlights: ["Key functional updates and platform modernizations in IBM Docs."]
@@ -555,7 +492,7 @@
                 <span class="text-xs bg-white/20 px-3 py-1 rounded-full font-medium">${featuresList.length} release(s) with features</span>
               </div>
               <div class="p-6 space-y-6 divide-y divide-slate-100">
-                ${featuresList.map(r => renderVersionSection(r.version, r.tag, r.catalogUrl, r.features)).join('')}
+                ${featuresList.map(r => renderVersionSection(r.label, r.tag, r.catalogUrl, r.features)).join('')}
               </div>
             </div>
           `;
@@ -572,7 +509,7 @@
                 <span class="text-xs bg-white/20 px-3 py-1 rounded-full font-medium">Defect Trackers (DTs)</span>
               </div>
               <div class="p-6 space-y-6 divide-y divide-slate-100">
-                ${securityList.map(r => renderVersionSection(r.version, r.tag, r.catalogUrl, r.securityAndFixes)).join('')}
+                ${securityList.map(r => renderVersionSection(r.label, r.tag, r.catalogUrl, r.securityAndFixes)).join('')}
               </div>
             </div>
           `;
@@ -588,7 +525,7 @@
                 </div>
               </div>
               <div class="p-6 space-y-6 divide-y divide-slate-100">
-                ${othersList.map(r => renderVersionSection(r.version, r.tag, r.catalogUrl, r.otherUpdates)).join('')}
+                ${othersList.map(r => renderVersionSection(r.label, r.tag, r.catalogUrl, r.otherUpdates)).join('')}
               </div>
             </div>
           `;
@@ -597,7 +534,7 @@
         if (!html) {
           html = `
             <div class="bg-white p-6 rounded-2xl border border-slate-200 text-center text-sm text-slate-500">
-              No specific What's New articles published for the intermediate patch tags. Refer to the target catalog source above.
+              No specific What's New articles published for the intermediate build tags. Refer to the target catalog source above.
             </div>
           `;
         }
@@ -612,13 +549,12 @@
       }
     }
 
-    function renderVersionSection(versionLabel, tag, catalogUrl, items) {
+    function renderVersionSection(label, tag, catalogUrl, items) {
       return `
         <div class="pt-4 first:pt-0">
           <div class="flex items-center justify-between mb-3">
-            <span class="px-3 py-1 text-xs font-bold bg-blue-50 text-blue-800 rounded-lg border border-blue-200 flex items-center gap-2">
-              <span>${versionLabel}</span>
-              <span class="text-[10px] font-mono font-normal text-slate-500">(${tag})</span>
+            <span class="px-3 py-1 text-xs font-bold bg-blue-50 text-blue-800 rounded-lg border border-blue-200">
+              ${label}
             </span>
             <a href="${catalogUrl}" target="_blank" class="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1 font-medium">
               <span>Catalog Source</span>
@@ -685,26 +621,16 @@
     // Sync button
     document.getElementById('syncLiveBtn').addEventListener('click', () => {
       catalogCache.clear();
-      syncDynamicCatalogs();
+      syncLiveCatalogs();
     });
 
-    // Event Handlers for Major Stream Changes
-    document.getElementById('fromMajorSelect').addEventListener('change', () => {
-      updateMinorOptions('from');
-      extractWhatsNew();
-    });
-
-    document.getElementById('toMajorSelect').addEventListener('change', () => {
-      updateMinorOptions('to');
-      extractWhatsNew();
-    });
-
-    document.getElementById('fromMinorSelect').addEventListener('change', extractWhatsNew);
-    document.getElementById('toMinorSelect').addEventListener('change', extractWhatsNew);
+    // Event Handlers
+    document.getElementById('fromVersionSelect').addEventListener('change', extractWhatsNew);
+    document.getElementById('toVersionSelect').addEventListener('change', extractWhatsNew);
     document.getElementById('compareBtn').addEventListener('click', extractWhatsNew);
 
     // Initial load
-    syncDynamicCatalogs();
+    syncLiveCatalogs();
   </script>
 </body>
 </html>
