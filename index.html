@@ -31,7 +31,7 @@
             MAS Core Version Navigator
           </h1>
           <p class="text-slate-600 mt-1 text-sm sm:text-base">
-            Select your starting and target MAS Core versions to view What's New, security & DT fixes, and the required catalog source.
+            Select your starting and target MAS Core versions to view Readmes, What's New features, security fixes, and the required catalog source.
           </p>
         </div>
         <div class="flex items-center gap-3">
@@ -163,7 +163,6 @@
     let currentChannelFilter = 'all';
     let masCoreReleases = [];
 
-    // Comprehensive MAS Core Version Database across all release channels
     const CORE_VERSIONS_DB = [
       // 9.2.x Channel
       { coreVersion: "9.2.2", channel: "9.2.x", catalogTagBase: "v9-260918", releaseDate: "Sep 2026", operatorCsv: "ibm-mas-operator.v9.2.2" },
@@ -246,60 +245,55 @@
     }
 
     /**
-     * Parses and enhances raw link text to be meaningful (e.g. converting bare tags like 'v9.0.29' to clear labels)
+     * Extracts exact Header titles for IBM node support links:
+     * e.g. "https://www.ibm.com/support/pages/node/7285203" -> "Readme file for Maximo Application Suite 9.0.29"
      */
     function formatLinkInfo(rawTitle, url, catalogTag) {
-      let title = rawTitle.trim();
-      let badge = 'Documentation';
-      let badgeColor = 'bg-blue-100 text-blue-800';
-      let componentName = 'MAS Update';
-
-      // Check URL and text for known components
       const urlLower = url.toLowerCase();
-      const titleLower = title.toLowerCase();
+      const rawTrimmed = rawTitle.trim();
 
-      if (urlLower.includes('manage') || titleLower.includes('manage')) {
-        componentName = 'MAS Manage';
-        badge = 'Application';
-        badgeColor = 'bg-purple-100 text-purple-800';
-      } else if (urlLower.includes('monitor') || titleLower.includes('monitor')) {
-        componentName = 'MAS Monitor';
-        badge = 'Application';
-        badgeColor = 'bg-indigo-100 text-indigo-800';
-      } else if (urlLower.includes('health') || titleLower.includes('health')) {
-        componentName = 'MAS Health';
-        badge = 'Application';
-        badgeColor = 'bg-emerald-100 text-emerald-800';
-      } else if (urlLower.includes('predict') || titleLower.includes('predict')) {
-        componentName = 'MAS Predict';
-        badge = 'Application';
-        badgeColor = 'bg-cyan-100 text-cyan-800';
-      } else if (urlLower.includes('visualinspection') || titleLower.includes('visual inspection')) {
-        componentName = 'Visual Inspection';
-        badge = 'Application';
-        badgeColor = 'bg-amber-100 text-amber-800';
-      } else if (urlLower.includes('iot') || titleLower.includes('iot')) {
-        componentName = 'MAS IoT';
-        badge = 'Application';
-        badgeColor = 'bg-teal-100 text-teal-800';
-      } else if (urlLower.includes('core') || titleLower.includes('core')) {
-        componentName = 'MAS Core';
-        badge = 'Platform Core';
-        badgeColor = 'bg-blue-100 text-blue-800';
-      } else if (url.includes('ibm.com/docs')) {
-        componentName = 'IBM Documentation';
-        badge = 'Docs Hub';
-        badgeColor = 'bg-sky-100 text-sky-800';
+      // Check if this is an IBM Support Page Node link (e.g. /support/pages/node/7285203)
+      const isNodeLink = urlLower.includes('/support/pages/node/');
+
+      // Extract version number if present (e.g. "9.0.29", "v9.1.21", "9.2.3")
+      const verMatch = rawTrimmed.match(/v?(\d+\.\d+\.\d+)/i) || url.match(/v?(\d+\.\d+\.\d+)/i);
+      const cleanVer = verMatch ? verMatch[1] : '';
+
+      // Determine product/component context
+      let componentName = 'Maximo Application Suite';
+      let badge = isNodeLink ? 'IBM Support Readme' : 'Documentation';
+      let badgeColor = isNodeLink ? 'bg-indigo-100 text-indigo-800' : 'bg-blue-100 text-blue-800';
+
+      if (urlLower.includes('manage') || rawTrimmed.toLowerCase().includes('manage')) {
+        componentName = 'Maximo Manage';
+      } else if (urlLower.includes('monitor') || rawTrimmed.toLowerCase().includes('monitor')) {
+        componentName = 'Maximo Monitor';
+      } else if (urlLower.includes('health') || rawTrimmed.toLowerCase().includes('health')) {
+        componentName = 'Maximo Health';
+      } else if (urlLower.includes('predict') || rawTrimmed.toLowerCase().includes('predict')) {
+        componentName = 'Maximo Predict';
+      } else if (urlLower.includes('visualinspection') || rawTrimmed.toLowerCase().includes('visual inspection')) {
+        componentName = 'Maximo Visual Inspection';
+      } else if (urlLower.includes('iot') || rawTrimmed.toLowerCase().includes('iot')) {
+        componentName = 'Maximo IoT';
+      } else if (urlLower.includes('core') || rawTrimmed.toLowerCase().includes('core')) {
+        componentName = 'Maximo Application Suite Core';
       }
 
-      // If the title is just a bare tag like "v9.0.29" or "v9.1.21"
-      if (/^v\d+\.\d+\.\d+$/i.test(title)) {
-        title = `${componentName} ${title} Release Notes`;
-      } else if (!title || title === 'link') {
-        title = `${componentName} Release Notes`;
+      let title = rawTrimmed;
+
+      if (isNodeLink) {
+        // Explicit IBM Readme Header format
+        title = cleanVer 
+          ? `Readme file for ${componentName} ${cleanVer}`
+          : `Readme file for ${componentName}`;
+      } else if (/^v?\d+\.\d+\.\d+$/i.test(rawTrimmed)) {
+        title = `Readme file for ${componentName} ${cleanVer || rawTrimmed}`;
+      } else if (!rawTrimmed || rawTrimmed.toLowerCase() === 'link') {
+        title = `Documentation for ${componentName}`;
       }
 
-      return { title, badge, badgeColor, componentName };
+      return { title, badge, badgeColor, isNodeLink };
     }
 
     async function syncDynamicCatalogs() {
@@ -469,7 +463,7 @@
           }
         }
 
-        // Deduplicate links by URL & format labels
+        // Deduplicate links by URL & format headers
         const seenUrls = new Set();
         extractedLinks.forEach(link => {
           if (seenUrls.has(link.url)) return;
@@ -715,15 +709,16 @@
                 return `
                   <a href="${item.url}" target="_blank" class="p-3.5 rounded-xl border border-slate-200 hover:border-blue-500 hover:bg-blue-50/40 transition group flex items-center justify-between bg-white shadow-xs">
                     <div class="flex items-center gap-3">
-                      <span class="px-2.5 py-1 rounded-md text-[11px] font-semibold ${item.badgeColor || 'bg-slate-100 text-slate-700'}">
-                        ${item.badge || 'Update'}
+                      <span class="px-2.5 py-1 rounded-md text-[11px] font-semibold flex items-center gap-1.5 ${item.badgeColor || 'bg-slate-100 text-slate-700'}">
+                        <i class="fa-solid fa-file-lines text-[10px]"></i>
+                        <span>${item.badge || 'Document'}</span>
                       </span>
                       <span class="text-sm font-semibold text-slate-800 group-hover:text-blue-600 transition">
                         ${item.title}
                       </span>
                     </div>
                     <div class="flex items-center gap-1.5 text-xs text-slate-400 group-hover:text-blue-600 transition">
-                      <span class="text-[11px] font-medium hidden sm:inline">Open Notes</span>
+                      <span class="text-[11px] font-medium hidden sm:inline">Open Readme</span>
                       <i class="fa-solid fa-arrow-up-right-from-square text-xs"></i>
                     </div>
                   </a>
