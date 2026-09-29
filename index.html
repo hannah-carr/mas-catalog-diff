@@ -31,7 +31,7 @@
             MAS Core Version Navigator
           </h1>
           <p class="text-slate-600 mt-1 text-sm sm:text-base">
-            Select your starting and target MAS Core versions (e.g. 9.1.1 ➔ 9.2.2) to view What's New, security & DT fixes, and the required catalog source.
+            Select your starting and target MAS Core versions to view What's New, security & DT fixes, and the required catalog source.
           </p>
         </div>
         <div class="flex items-center gap-3">
@@ -116,7 +116,7 @@
               <i class="fa-solid fa-server"></i>
             </span>
             <div>
-              <div class="text-xs text-slate-400 uppercase tracking-wider font-bold">Catalog Source for Selected Target Core Version</div>
+              <div class="text-xs text-slate-400 uppercase tracking-wider font-bold">Catalog Source for Target Core Version</div>
               <div id="targetCatalogTitle" class="text-lg font-bold text-white font-mono">v9-260918-amd64</div>
             </div>
           </div>
@@ -234,9 +234,6 @@
       }
     };
 
-    /**
-     * Parse semver comparator helper
-     */
     function compareSemver(a, b) {
       const pa = a.split('.').map(Number);
       const pb = b.split('.').map(Number);
@@ -249,8 +246,62 @@
     }
 
     /**
-     * Dynamically discovers newly published catalogs from GitHub and synchronizes MAS Core releases
+     * Parses and enhances raw link text to be meaningful (e.g. converting bare tags like 'v9.0.29' to clear labels)
      */
+    function formatLinkInfo(rawTitle, url, catalogTag) {
+      let title = rawTitle.trim();
+      let badge = 'Documentation';
+      let badgeColor = 'bg-blue-100 text-blue-800';
+      let componentName = 'MAS Update';
+
+      // Check URL and text for known components
+      const urlLower = url.toLowerCase();
+      const titleLower = title.toLowerCase();
+
+      if (urlLower.includes('manage') || titleLower.includes('manage')) {
+        componentName = 'MAS Manage';
+        badge = 'Application';
+        badgeColor = 'bg-purple-100 text-purple-800';
+      } else if (urlLower.includes('monitor') || titleLower.includes('monitor')) {
+        componentName = 'MAS Monitor';
+        badge = 'Application';
+        badgeColor = 'bg-indigo-100 text-indigo-800';
+      } else if (urlLower.includes('health') || titleLower.includes('health')) {
+        componentName = 'MAS Health';
+        badge = 'Application';
+        badgeColor = 'bg-emerald-100 text-emerald-800';
+      } else if (urlLower.includes('predict') || titleLower.includes('predict')) {
+        componentName = 'MAS Predict';
+        badge = 'Application';
+        badgeColor = 'bg-cyan-100 text-cyan-800';
+      } else if (urlLower.includes('visualinspection') || titleLower.includes('visual inspection')) {
+        componentName = 'Visual Inspection';
+        badge = 'Application';
+        badgeColor = 'bg-amber-100 text-amber-800';
+      } else if (urlLower.includes('iot') || titleLower.includes('iot')) {
+        componentName = 'MAS IoT';
+        badge = 'Application';
+        badgeColor = 'bg-teal-100 text-teal-800';
+      } else if (urlLower.includes('core') || titleLower.includes('core')) {
+        componentName = 'MAS Core';
+        badge = 'Platform Core';
+        badgeColor = 'bg-blue-100 text-blue-800';
+      } else if (url.includes('ibm.com/docs')) {
+        componentName = 'IBM Documentation';
+        badge = 'Docs Hub';
+        badgeColor = 'bg-sky-100 text-sky-800';
+      }
+
+      // If the title is just a bare tag like "v9.0.29" or "v9.1.21"
+      if (/^v\d+\.\d+\.\d+$/i.test(title)) {
+        title = `${componentName} ${title} Release Notes`;
+      } else if (!title || title === 'link') {
+        title = `${componentName} Release Notes`;
+      }
+
+      return { title, badge, badgeColor, componentName };
+    }
+
     async function syncDynamicCatalogs() {
       const knownVersions = new Map(CORE_VERSIONS_DB.map(v => [v.coreVersion, v]));
 
@@ -265,7 +316,6 @@
                 const tag = match[1].replace('.json', '');
                 const tagBase = tag.replace(/-(amd64|ppc64le|s390x)$/, '');
                 
-                // If tag contains new builds not in static list
                 const exists = Array.from(knownVersions.values()).some(v => v.catalogTagBase === tagBase);
                 if (!exists && tagBase.startsWith('v9-')) {
                   const inferredVer = `9.2.${knownVersions.size % 5}`;
@@ -287,7 +337,6 @@
         console.warn('Sync fallback used');
       }
 
-      // Sort descending (highest semver first: 9.2.2 -> 9.2.1 -> 9.1.1 -> 9.0.0 -> 8.11.0)
       masCoreReleases = Array.from(knownVersions.values()).sort((a, b) => 
         compareSemver(b.coreVersion, a.coreVersion)
       );
@@ -300,13 +349,11 @@
       const fromSelect = document.getElementById('fromVersionSelect');
       const toSelect = document.getElementById('toVersionSelect');
 
-      // Filter by channel if selected
       let filtered = masCoreReleases;
       if (currentChannelFilter !== 'all') {
         filtered = masCoreReleases.filter(v => v.channel === currentChannelFilter);
       }
 
-      // Group by channel
       const channelGroups = {};
       filtered.forEach(item => {
         const group = `Channel: ${item.channel}`;
@@ -326,7 +373,6 @@
       fromSelect.innerHTML = optionsHtml;
       toSelect.innerHTML = optionsHtml;
 
-      // Default: From = 9.1.1 (or lowest in filter), To = 9.2.2 (or highest in filter)
       const defaultFrom = filtered.find(v => v.coreVersion === "9.1.1") || filtered[filtered.length - 1];
       const defaultTo = filtered.find(v => v.coreVersion === "9.2.2") || filtered[0];
 
@@ -337,7 +383,6 @@
     }
 
     function getFutureCoreReleasesInRange(fromCoreVer, toCoreVer) {
-      // Ascending chronological order (lowest version to highest version)
       const ascending = [...masCoreReleases].sort((a, b) => compareSemver(a.coreVersion, b.coreVersion));
       const fromIdx = ascending.findIndex(v => v.coreVersion === fromCoreVer);
       const toIdx = ascending.findIndex(v => v.coreVersion === toCoreVer);
@@ -424,12 +469,24 @@
           }
         }
 
+        // Deduplicate links by URL & format labels
+        const seenUrls = new Set();
         extractedLinks.forEach(link => {
-          const lText = link.title.toLowerCase();
+          if (seenUrls.has(link.url)) return;
+          seenUrls.add(link.url);
+
+          const linkInfo = formatLinkInfo(link.title, link.url, tag);
+          const itemObj = {
+            type: 'link',
+            url: link.url,
+            ...linkInfo
+          };
+
+          const lText = (link.title + ' ' + link.url).toLowerCase();
           if (lText.includes('security') || lText.includes('fix') || lText.includes('cve') || lText.includes('defect') || /dt\d+/i.test(lText)) {
-            result.securityAndFixes.push({ type: 'link', ...link });
+            result.securityAndFixes.push(itemObj);
           } else {
-            result.features.push({ type: 'link', ...link });
+            result.features.push(itemObj);
           }
         });
 
@@ -652,17 +709,22 @@
             </a>
           </div>
 
-          <div class="space-y-2">
+          <div class="grid grid-cols-1 gap-2.5">
             ${items.map(item => {
               if (item.type === 'link') {
                 return `
-                  <a href="${item.url}" target="_blank" class="block p-3 rounded-xl border border-slate-200 hover:border-blue-500 hover:bg-blue-50/50 transition group">
-                    <div class="flex items-center justify-between">
-                      <span class="text-sm font-semibold text-slate-800 group-hover:text-blue-600 transition flex items-center gap-2">
-                        <i class="fa-solid fa-arrow-right text-xs text-blue-500"></i>
+                  <a href="${item.url}" target="_blank" class="p-3.5 rounded-xl border border-slate-200 hover:border-blue-500 hover:bg-blue-50/40 transition group flex items-center justify-between bg-white shadow-xs">
+                    <div class="flex items-center gap-3">
+                      <span class="px-2.5 py-1 rounded-md text-[11px] font-semibold ${item.badgeColor || 'bg-slate-100 text-slate-700'}">
+                        ${item.badge || 'Update'}
+                      </span>
+                      <span class="text-sm font-semibold text-slate-800 group-hover:text-blue-600 transition">
                         ${item.title}
                       </span>
-                      <i class="fa-solid fa-arrow-up-right-from-square text-xs text-slate-400 group-hover:text-blue-600 transition"></i>
+                    </div>
+                    <div class="flex items-center gap-1.5 text-xs text-slate-400 group-hover:text-blue-600 transition">
+                      <span class="text-[11px] font-medium hidden sm:inline">Open Notes</span>
+                      <i class="fa-solid fa-arrow-up-right-from-square text-xs"></i>
                     </div>
                   </a>
                 `;
